@@ -38,6 +38,7 @@ tournamentstatus final P1: +3138 -2431 =4431 Win: 53.54% Elo: 24.60 LOS: 100.00%
 ```
 
 ##Validation run 1
+
 10.000 game validation run with all three options enabled (uncertainty-prop=1, auto-extend=1, backpropagation-mode=0.75)
 ```
 tournamentstatus final P1: +3220 -2343 =4437 Win: 54.39% Elo: 30.55 LOS: 100.00% P1-W: +1721 -1184 =2095 P1-B: +1499 -1159 =2342
