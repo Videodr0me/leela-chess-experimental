@@ -1,7 +1,7 @@
 # leela-chess-experimental
 based on Leela Chess Zero https://github.com/LeelaChessZero
 
-In order to familiarize myself with the code and get a feel for MCTS, i tried a number of search ideas in lc0. If you find something interesting here feel free to open an issue and discuss. This is a work in progress and purely experimental - new ideas will be added from time to time. This servers more as documentation of the good as well as the bad tries - so do not expect huge gains but some ideas yield an measurable elo gain.  
+In order to familiarize myself with the code and get a feel for MCTS, i tried a number of search ideas in lc0. If you find something interesting here feel free to open an issue and discuss. This is a work in progress and purely experimental - new ideas will be added from time to time. This serves as documentation of both the good as well as the bad tries - so do not expect huge gains - but some ideas yield a measurable elo gain.  
 
 Disclaimer: All changes are completely zero, completely game agnostic and need no parameters (except one). 
 
@@ -26,11 +26,15 @@ Result is within expectations, as this minor change takes probably 100.000 games
 This is also known as MCTS-Solver or Proof-Number-Search in literature. For a description with example positions see: https://github.com/Videodr0me/leela-chess-experimental/wiki#certainty-propagation---certainty-prop1
 
 ```
-lc0-cudnn selfplay --parallelism=8 --backend=multiplexing "--backend-opts=cudnn(threads=2)" --games=10000 --visits=100 --temperature=1 --tempdecay-moves=10 player1: --certainty-prop=1 --auto-extend=0 --backpropagate-mode=0 --optimal-select=0 player2: --auto-extend=0 --certainty-prop=0 --optimal-select=0 --backpropagate-mode=0
+lc0-cudnn selfplay --parallelism=8 --backend=multiplexing "--backend-opts=cudnn(threads=2)" --games=10000 --visits=100 --temperature=1 --tempdecay-moves=10 player1: --certainty-prop=1 --auto-extend=0 --backpropagate-mode=0 --optimal-select=0 
+
+player2: --auto-extend=0 --certainty-prop=0 --optimal-select=0 --backpropagate-mode=0
 tournamentstatus final P1: +2937 -2849 =4214 Win: 50.44% Elo:  3.06 LOS: 87.63% P1-W: +1718 -1140 =2142 P1-B: +1219 -1709 =2072
 ```
 
 Result is also within expectation, but this has some nice properties. Certain winning moves at root can be played irregardless of visit counts, which is beneficial in time pressure situations as MCTS is slow to revise initial estimates. Also if one day Tablebases get added, certainty propagation is useful for propagating the TB probe results throughout the tree. 
 
-### 
+### Power-Decay-Averaging
+This is my flavor of Gudmundsson and Björnsson 2011. For a description with example position see:
+https://github.com/Videodr0me/leela-chess-experimental/wiki/Leela-Chess-Zero-experimental-search#power-decay-averaging-tree-search
 
