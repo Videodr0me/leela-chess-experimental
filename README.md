@@ -37,7 +37,7 @@ https://github.com/Videodr0me/leela-chess-experimental/wiki#power-decay-averagin
 tournamentstatus final P1: +3138 -2431 =4431 Win: 53.54% Elo: 24.60 LOS: 100.00% P1-W: +1805 -1143 =2052 P1-B: +1333 -1288 =2379
 ```
 
-##Validation run 1
+## Validation run 1
 
 10.000 game validation run with all three options enabled (uncertainty-prop=1, auto-extend=1, backpropagation-mode=0.75)
 ```
