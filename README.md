@@ -37,7 +37,7 @@ Result is also within expectation, but this has some nice properties. Certain wi
 ### Power-Decay-Averaging
 This is my flavor of Gudmundsson and Björnsson 2011. For a description with example position see:
 
-https://github.com/Videodr0me/leela-chess-experimental/wiki/Leela-Chess-Zero-experimental-search#power-decay-averaging-tree-search
+https://github.com/Videodr0me/leela-chess-experimental/wiki#power-decay-averaging-tree-search
 ```
 tournamentstatus final P1: +3138 -2431 =4431 Win: 53.54% Elo: 24.60 LOS: 100.00% P1-W: +1805 -1143 =2052 P1-B: +1333 -1288 =2379
 ```
