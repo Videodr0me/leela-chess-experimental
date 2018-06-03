@@ -14,8 +14,6 @@ https://github.com/Videodr0me/leela-chess-experimental/wiki#single-legal-move-po
 
 10.000 Game self-play result:
 ```
-lc0-cudnn selfplay --parallelism=8 --backend=multiplexing "--backend-opts=cudnn(threads=2)" --games=10000 --visits=100 --temperature=1 --tempdecay-moves=10 player1: --certainty-prop=0 --auto-extend=1 --backpropagate-mode=0 --optimal-select=0 player2: --auto-extend=0 --certainty-prop=0 --optimal-select=0 --backpropagate-mode=0
-
 tournamentstatus final P1: +2974 -2925 =4101 Win: 50.24% Elo:  1.70 LOS: 73.82% P1-W: +1705 -1267 =2028 P1-B: +1269 -1658 =2073
 ```
 
@@ -26,9 +24,6 @@ Result is within expectations, as this minor change takes probably 100.000 games
 This is also known as MCTS-Solver or Proof-Number-Search in literature. For a description with example positions see: https://github.com/Videodr0me/leela-chess-experimental/wiki#certainty-propagation---certainty-prop1
 
 ```
-lc0-cudnn selfplay --parallelism=8 --backend=multiplexing "--backend-opts=cudnn(threads=2)" --games=10000 --visits=100 --temperature=1 --tempdecay-moves=10 player1: --certainty-prop=1 --auto-extend=0 --backpropagate-mode=0 --optimal-select=0 
-
-player2: --auto-extend=0 --certainty-prop=0 --optimal-select=0 --backpropagate-mode=0
 tournamentstatus final P1: +2937 -2849 =4214 Win: 50.44% Elo:  3.06 LOS: 87.63% P1-W: +1718 -1140 =2142 P1-B: +1219 -1709 =2072
 ```
 
