@@ -29,7 +29,7 @@ tournamentstatus final P1: +2937 -2849 =4214 Win: 50.44% Elo:  3.06 LOS: 87.63% 
 
 Result is also within expectation, but this has some nice properties. Certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations as MCTS is slow to revise initial estimates. Also if one day Tablebases get added, certainty propagation is useful for propagating the TB probe results throughout the tree. 
 
-### Decay-Averaging
+### Moving-Average-Q
 Power function was to steep for high visit searches - did not scale well. Linear version testing...
 
 This is my flavor of Gudmundsson and Björnsson 2011. For a description with example position see:
