@@ -45,4 +45,4 @@ Alternatively testing a linear version.
 ```
 tournamentstatus final P1: +3220 -2343 =4437 Win: 54.39% Elo: 30.55 LOS: 100.00% P1-W: +1721 -1184 =2095 P1-B: +1499 -1159 =2342
 ```
-Result confirms above single option results and strength contributions seem additive.
+Result confirms above single option results and strength contributions seem additive at low visit searches per move. Higher visit match games pending...
