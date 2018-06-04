@@ -27,7 +27,7 @@ This is also known as MCTS-Solver or Proof-Number-Search in literature. For a de
 tournamentstatus final P1: +2937 -2849 =4214 Win: 50.44% Elo:  3.06 LOS: 87.63% P1-W: +1718 -1140 =2142 P1-B: +1219 -1709 =2072
 ```
 
-Result is also within expectation, but this has some nice properties. Certain winning moves at root can be played irregardless of visit counts, which is beneficial in time pressure situations as MCTS is slow to revise initial estimates. Also if one day Tablebases get added, certainty propagation is useful for propagating the TB probe results throughout the tree. 
+Result is also within expectation, but this has some nice properties. Certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations as MCTS is slow to revise initial estimates. Also if one day Tablebases get added, certainty propagation is useful for propagating the TB probe results throughout the tree. 
 
 ### Power-Decay-Averaging
 This is my flavor of Gudmundsson and Björnsson 2011. For a description with example position see:
