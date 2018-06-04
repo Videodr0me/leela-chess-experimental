@@ -29,16 +29,12 @@ tournamentstatus final P1: +2937 -2849 =4214 Win: 50.44% Elo:  3.06 LOS: 87.63% 
 
 Result is also within expectation, but this has some nice properties. Certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations as MCTS is slow to revise initial estimates. Also if one day Tablebases get added, certainty propagation is useful for propagating the TB probe results throughout the tree. 
 
-### Power-Decay-Averaging
+### Decay-Averaging
+Power function was to steep for high visit searches - did not scale well. Linear version testing...
+
 This is my flavor of Gudmundsson and Björnsson 2011. For a description with example position see:
 
 https://github.com/Videodr0me/leela-chess-experimental/wiki#power-decay-averaging-tree-search
-
-Results with gamma 0.75 
-```
-tournamentstatus final P1: +3138 -2431 =4431 Win: 53.54% Elo: 24.60 LOS: 100.00% P1-W: +1805 -1143 =2052 P1-B: +1333 -1288 =2379
-```
-It has been brought to my attention that gamma 0.9 is much stronger at longer time controls. This is not suprising as 0.75 was just a first guess, and it needs much more testing if this idea works at all at longer time controls.  
 
 ## Validation run 1
 
