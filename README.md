@@ -38,7 +38,7 @@ Results with gamma 0.75
 ```
 tournamentstatus final P1: +3138 -2431 =4431 Win: 53.54% Elo: 24.60 LOS: 100.00% P1-W: +1805 -1143 =2052 P1-B: +1333 -1288 =2379
 ```
-It has been brought to my attention that gamma 0.9 is much stronger at longer time controls. This is not suprising as 0.75 was just a first guess.  
+It has been brought to my attention that gamma 0.9 is much stronger at longer time controls. This is not suprising as 0.75 was just a first guess, and it needs much more testing if this idea works at all higher visits per move.  
 
 ## Validation run 1
 
