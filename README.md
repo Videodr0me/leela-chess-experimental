@@ -30,11 +30,14 @@ tournamentstatus final P1: +2937 -2849 =4214 Win: 50.44% Elo:  3.06 LOS: 87.63% 
 Result is also within expectation, but this has some nice properties. Certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations as MCTS is slow to revise initial estimates. Also if one day Tablebases get added, certainty propagation is useful for propagating the TB probe results throughout the tree. 
 
 ### Moving-Average-Q
-Power function was to steep for high visit searches - did not scale well. Linear version testing...
-
-This is my flavor of Gudmundsson and Björnsson 2011. For a description with example position see:
+This is my flavor of Gudmundsson and Björnsson 2011. For a description see:
 
 https://github.com/Videodr0me/leela-chess-experimental/wiki#power-decay-averaging-tree-search
+
+Current status: parameter needs tuning (0.75 is to low for higher visit searches)
+Current best value across 100, 1000 and 1000 visit games: 0.955
+
+Alternatively testing a linear version.
 
 ## Validation run 1
 
