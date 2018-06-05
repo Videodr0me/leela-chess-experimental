@@ -34,8 +34,6 @@ This is my flavor of Gudmundsson and Björnsson 2011. For a description see:
 
 https://github.com/Videodr0me/leela-chess-experimental/wiki#power-decay-averaging-tree-search
 
-Current status: parameter needs tuning (0.75 is to low for higher visit searches)
-Current best value across 100, 1000 and 1000 visit games: 0.955
 
 Match | power gamma=0.75 | linear beta= 
 ------- | ------------------- | ------------
