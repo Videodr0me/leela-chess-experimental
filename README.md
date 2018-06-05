@@ -39,7 +39,11 @@ Match | power gamma=0.75 | linear beta=0.49 | limited beta
 ------- | ------------------- | ------------ | ----------- 
 10000 Games / 100 Visits|  Elo: 24.60 LOS: 100.00% | Elo: 45.04 LOS: 100.00% | pending
 1000 Games / 800 Visits |     Elo: -4.52 LOS: 25.04% | Elo:  4.17 LOS: 72.38% | pending
-500 Games / 10000 Visits | not planned | Elo: -11.12 LOS:  4.94% | pending
+500 Games / 10000 Visits | not planned | Elo: -11.12 LOS:  4.94% | pendinguned 
+
+### UCB1 tuned and other variance based approaches
+
+pending
 
 ## Validation run 1
 
