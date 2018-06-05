@@ -38,7 +38,7 @@ https://github.com/Videodr0me/leela-chess-experimental/wiki#power-decay-averagin
 Match | power gamma=0.75 | linear beta= 
 ------- | ------------------- | ------------
 10000 Games / 100 Visits|  Elo: 24.60 LOS: 100.00% | pending
-1000 Games / 800 Visits |     Elo: -4.52 LOS: 25.04% | pending
+1000 Games / 800 Visits |     Elo: -4.52 LOS: 25.04% | Elo:  4.17 LOS: 72.38%
 1000 Games / 10000 Visits | not planned | pending
 
 ## Validation run 1
