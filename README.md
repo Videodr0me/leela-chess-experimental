@@ -11,11 +11,12 @@ Deep Mind is somewhat vague in their papers on if and how they use FPU. At one p
 
 FPU type | match result
 ------- | -------------------
-q = 0|   P1: +125 -443 =432 Win: 34.10% Elo: -114.45 LOS:  0.00%
-q = 1.1 (No FPU)|    P1: +6 -905 =89 Win:  5.05% Elo: -509.68 LOS:  0.00%
-q = -parent_v | pending
+q = 0| +125 -443 =432 Win: 34.10% Elo: -114.45 LOS:  0.00%
+q = 1.1 (No FPU)| +6 -905 =89 Win:  5.05% Elo: -509.68 LOS:  0.00%
+q = -parent_v | +262 -307 =431 Win: 47.75% Elo: -15.65 LOS:  2.96%
 
-all tests with FPU-Reductions disabled (=0.0)
+all tests with FPU-Reductions disabled (=0.0).
+One can safely conclude that FPU with -parent_q is strongest. And I strongly suspect this is what Deep Mind used, at least in Alpha Zero. Maybe we will know more if the full paper is published.
 
 
 ## Search Modifications
