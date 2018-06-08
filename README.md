@@ -7,14 +7,15 @@ Disclaimer: All changes are completely zero, completely game agnostic and need n
 ## Sanity Tests
 
 ### FPU or not to FPU
-Deep Mind is somewhat vague in their papers on if and how they use FPU. At one point they claim to not use FPU at all, and at another they preinitialize q with 0. I tested all common FPU approaches with these results for chess. Baseline is parent q:
-
+Deep Mind is somewhat vague in their papers on if and how they use FPU. At one point they claim to not use FPU at all, and at another they preinitialize q with 0. I tested all common FPU approaches with these results for chess. Baseline is -parent q:
 
 FPU type | match result
 ------- | -------------------
 q = 0|   P1: +125 -443 =432 Win: 34.10% Elo: -114.45 LOS:  0.00%
 q = 1.1 (No FPU)|    P1: +6 -905 =89 Win:  5.05% Elo: -509.68 LOS:  0.00%
-q = parent_v | pending
+q = -parent_v | pending
+
+all tests with FPU-Reductions disabled (=0.0)
 
 
 ## Search Modifications
