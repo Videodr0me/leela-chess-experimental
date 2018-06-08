@@ -4,6 +4,18 @@ based on Leela Chess Zero https://github.com/LeelaChessZero
 In order to familiarize myself with the code and get a feel for MCTS, i tried a number of search ideas in lc0. If you find something interesting here feel free to open an issue and discuss. This is a work in progress and purely experimental - new ideas will be added from time to time. This serves as documentation of both the good as well as the bad tries - so do not expect huge gains - but some ideas yield a measurable elo gain.  
 
 Disclaimer: All changes are completely zero, completely game agnostic and need no parameters (except one). 
+## Sanity Tests
+
+### FPU or not to FPU
+Deep Mind is somewhat vague in their papers on if and how they use FPU. At one point they claim to not use FPU at all, and at another they preinitialize q with 0. I tested all common FPU approaches with these results for chess. Baseline is parent q:
+
+
+FPU type | match result
+------- | -------------------
+q = 0|   P1: +125 -443 =432 Win: 34.10% Elo: -114.45 LOS:  0.00%
+q = 1.1 (No FPU)|    pending
+q = parent_v | pending
+
 
 ## Search Modifications
 
