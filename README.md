@@ -13,7 +13,7 @@ Deep Mind is somewhat vague in their papers on if and how they use FPU. At one p
 FPU type | match result
 ------- | -------------------
 q = 0|   P1: +125 -443 =432 Win: 34.10% Elo: -114.45 LOS:  0.00%
-q = 1.1 (No FPU)|    pending
+q = 1.1 (No FPU)|    P1: +6 -905 =89 Win:  5.05% Elo: -509.68 LOS:  0.00%
 q = parent_v | pending
 
 
