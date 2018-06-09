@@ -18,6 +18,12 @@ q = -parent_v | +262 -307 =431 Win: 47.75% Elo: -15.65 LOS:  2.96%
 all tests with FPU-Reductions disabled (=0.0).
 One can safely conclude that FPU with -parent_q is strongest. And I strongly suspect this is what Deep Mind used, at least in Alpha Zero. Maybe we will know more if the full paper is published.
 
+### The C in CPUCT
+Matches between --cpuct=1.2 (lc0 scale) and --cpuct=3.0 at low visits (100 or 800 per move) always showed a substantial self-play loss. Which is hardly suprising as the net has been trained at cpuct=1.2 and the policy head and also the value head adapt to the chosen value over time (within the sum-to-one contrainsts of the policy head and regularizaton). I did a 10000 visit per move match to see if this holds at larger visit counts:
+```
+tournamentstatus final P1: +181 -32 =487 Win: 60.64% Elo: 75.10 LOS: 100.00% P1-W: +108 -15 =227 P1-B: +73 -17 =260
+```
+No surprises here. The results would most likely be reversed if the net was trained on a cpuct of 3.0 (lc0 metric). The question of what puct to choose for training is a difficult one. Deep mind used data from fully trained smaller nets to optimize this parameter and never changed it during the final "big" net training. Of course this would bias cpuct towards whatever the smaller net was trained on. I also believe that policy is always ahead of value and that higher cpuct values help somewhat to combat overfitting of the value head. I think the current route to set it to 2.0 (lc0 - reboot training) and revisit this issue once smaller nets are fully trained is a good one.
 
 ## Search Modifications
 
