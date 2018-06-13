@@ -58,23 +58,7 @@ tournamentstatus final P1: +3220 -2343 =4437 Win: 54.39% Elo: 30.55 LOS: 100.00%
 ```
 Result confirms above single option results and strength contributions seem additive at low visit searches per move. Higher visit match games pending...
 
-## Sanity Tests
 
-### FPU or not to FPU
-Deep Mind is somewhat vague in their papers on if and how they use FPU. At one point they claim to not use FPU at all, and at another they preinitialize q with 0. I tested all common FPU approaches with these results for chess. Baseline is -parent q:
-
-FPU type | match result
-------- | -------------------
-q = 0| +125 -443 =432 Win: 34.10% Elo: -114.45 LOS:  0.00%
-q = 1.1 (No FPU)| +6 -905 =89 Win:  5.05% Elo: -509.68 LOS:  0.00%
-q = -parent_v | +262 -307 =431 Win: 47.75% Elo: -15.65 LOS:  2.96%
-
-all tests with FPU-Reductions disabled (=0.0).
-One can safely conclude that FPU with -parent_q is strongest. And I strongly suspect this is what Deep Mind used, at least in Alpha Zero. Maybe we will know more if the full paper is published.
-
-### The C in CPUCT
-Matches between --cpuct=1.2 (lc0 scale) and --cpuct=3.0 at low visits (100 or 800 per move) always showed a substantial self-play loss. Which is hardly suprising as the net has been trained at cpuct=1.2 and the policy head and also the value head adapt to the chosen value over time (within the sum-to-one contrainsts of the policy head and regularizaton). I did a 10000 visit per move match to see if this holds at larger visit counts:
-```
-tournamentstatus final P1: +181 -32 =487 Win: 60.64% Elo: 75.10 LOS: 100.00% P1-W: +108 -15 =227 P1-B: +73 -17 =260
-```
-No surprises here. The results would most likely be reversed if the net was trained on a cpuct of 3.0 (lc0 metric). The question of what puct to choose for training is a difficult one. Deep mind used data from fully trained smaller nets to optimize this parameter and never changed it during the final "big" net training. Of course this would bias cpuct towards whatever the smaller net was trained on. I also believe that policy is always ahead of value and that higher cpuct values help somewhat to combat overfitting of the value head. I think the current route to set it to 2.0 (lc0 - reboot training) and revisit this issue once smaller nets are fully trained is a good one.
+## Miscellaneous
+A number of "sanity tests" of FPU variants, Cpuct and various minor MCTS tweaks can be found here. These are mainly done to corroborate that current leela is working as expected and to restest some minor implementation details in chess:
+https://github.com/Videodr0me/leela-chess-experimental/wiki/Sanity-Tests
