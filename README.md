@@ -45,7 +45,7 @@ Inconclusive results or elo losses. Could not make this work.
 
 Variance of q is calculated for each node. And used for node selection. Work in progress: variances are calculated with a numerically robust "online" algorithm. Use --verbose-movestats to display variances for each node. These stats are very interesting, next is to use this info in a theoretically sound way in the PUCT formula.
 
-### Validation Runs
+## Validation Runs
 
 10.000 game (100 visits per move) validation run with these options enabled (uncertainty-prop=1, auto-extend=1, backpropagate-gamma=0.75)
 ```
