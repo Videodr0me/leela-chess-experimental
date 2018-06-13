@@ -12,6 +12,7 @@ Disclaimer: All changes are completely zero, completely game agnostic and need n
 ### Certainty propagation & Single-legal-move extension
 
 A variant of MCTS-Solver (Winands et. al). For a decription, example positions and self-play elo see:
+
 https://github.com/Videodr0me/leela-chess-experimental/wiki/MCTS-Solver---Certainty-Propagation-and-Autoextending
 
 These gain some elo, but also have some additonal nice properties. Leela now finds shallow mates faster and certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations (typically MCTS is slow to revise initial estimates).
