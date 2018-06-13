@@ -35,8 +35,10 @@ Instead of changing softmax temperature this scheme encourages exploration of lo
 
 Very good on tactics tests, but looses some self-play elo. Not tested against non-leela opponents.
 
-### Do not trust first visit (fully)
+### Do not trust initial visits (fully)
 Similar to FPU this assumes that when selecting nodes for expansion that first backpropagated NN eval is still unreliable and gets averaged with parent-q for PUCT evaluation. Details of multiple flavours here:
+
+https://github.com/Videodr0me/leela-chess-experimental/wiki/Selection:-Don't-trust-initial-visits
 
 Inconclusive results or elo losses. Could not make this work.
 
