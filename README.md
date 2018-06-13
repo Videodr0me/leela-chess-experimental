@@ -9,46 +9,40 @@ Disclaimer: All changes are completely zero, completely game agnostic and need n
 
 ## Search Modifications
 
-### Single-legal-move extension
+### Certainty propagation & Single-legal-move extension
 
-For a decription and an example position of what this does see:
-https://github.com/Videodr0me/leela-chess-experimental/wiki#single-legal-move-positions---auto-extend1
+A variant of MCTS-Solver (Winands et. al). For a decription, example positions and self-play elo see:
+https://github.com/Videodr0me/leela-chess-experimental/wiki/MCTS-Solver---Certainty-Propagation-and-Autoextending
 
-10.000 Game self-play result:
-```
-tournamentstatus final P1: +2974 -2925 =4101 Win: 50.24% Elo:  1.70 LOS: 73.82% P1-W: +1705 -1267 =2028 P1-B: +1269 -1658 =2073
-```
+These gain some elo, but also have some additonal nice properties. Leela now finds shallow mates faster and certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations (typically MCTS is slow to revise initial estimates).
 
-Result is within expectations, as this minor change takes probably 100.000 games to properly assess.
+### Q-Moving-Average
+Tested some variants of Gudmundsson and Björnsson and Feldman and Domshlak. For a description see:
 
-### Certainty propagation 
+https://github.com/Videodr0me/leela-chess-experimental/wiki/Backpropagation:-Q-Moving-Average
 
-This is also known as MCTS-Solver or Proof-Number-Search in literature. For a description with example positions see: https://github.com/Videodr0me/leela-chess-experimental/wiki#certainty-propagation---certainty-prop1
+Large elo gains at low visit counts, but doesn't currently scale with larger visit searches. Interesting but needs further investigation.
 
+### Node Selection for Expansion: 
 
-```
-tournamentstatus final P1: +2937 -2849 =4214 Win: 50.44% Elo:  3.06 LOS: 87.63% P1-W: +1718 -1140 =2142 P1-B: +1219 -1709 =2072
-```
-
-Result is also within expectation, but this has some nice properties. Certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations as MCTS is slow to revise initial estimates. Also if one day Tablebases get added, certainty propagation is useful for propagating the TB probe results throughout the tree. 
-
-This has been updated (see above link) and should be stronger now - above results outdated. New results and executable will follow soon.
-
-### Moving-Average-Q
-This is my flavor of Gudmundsson and Björnsson 2011. For a description see:
-
-https://github.com/Videodr0me/leela-chess-experimental/wiki#power-decay-averaging-tree-search
+## Tree-balancing
+Soon.
 
 
-Match | power gamma=0.75 | linear beta=0.49 | limited beta
-------- | ------------------- | ------------ | ----------- 
-10000 Games / 100 Visits|  Elo: 24.60 LOS: 100.00% | Elo: 45.04 LOS: 100.00% | pending
-1000 Games / 800 Visits |     Elo: -4.52 LOS: 25.04% | Elo:  4.17 LOS: 72.38% | pending
-500 Games / 10000 Visits | not planned | Elo: -11.12 LOS:  4.94% | pending
+## Compress low policy move probabilites 
+Instead of changing softmax temperature this scheme encourages exploration of low policy priors by compressing low probabilites more than high probabilites. See:
+
+Very good on tactics tests, but looses some self-play elo. Not tested against non-leela opponents.
+
+## Do not trust first visit (fully)
+Similar to FPU this assumes that when selecting nodes for expansion that first backpropagated NN eval is still unreliable and gets averaged with parent-q for PUCT evaluation. Details of multiple flavours here:
+
+Inconclusive results or elo losses. Could not make this work.
+
 
 ### UCB1 tuned and other variance based approaches
 
-pending
+Variance of q is calculated for each node. And used for node selection. Work in progress: variances are calculated with a numerically robust "online" algorithm. Use --verbose-movestats to display variances for each node. These stats are very interesting, next is to use this info in a theoretically sound way in the PUCT formula.
 
 ## Validation run 1
 
