@@ -24,18 +24,18 @@ https://github.com/Videodr0me/leela-chess-experimental/wiki/Backpropagation:-Q-M
 
 Large elo gains at low visit counts, but doesn't currently scale with larger visit searches. Interesting but needs further investigation.
 
-### Node Selection for Expansion: 
+## Node Selection for Expansion: 
 
-## Tree-balancing
+### Tree-balancing
 Soon.
 
 
-## Compress low policy move probabilites 
+### Compress low policy move probabilites 
 Instead of changing softmax temperature this scheme encourages exploration of low policy priors by compressing low probabilites more than high probabilites. See:
 
 Very good on tactics tests, but looses some self-play elo. Not tested against non-leela opponents.
 
-## Do not trust first visit (fully)
+### Do not trust first visit (fully)
 Similar to FPU this assumes that when selecting nodes for expansion that first backpropagated NN eval is still unreliable and gets averaged with parent-q for PUCT evaluation. Details of multiple flavours here:
 
 Inconclusive results or elo losses. Could not make this work.
@@ -45,13 +45,13 @@ Inconclusive results or elo losses. Could not make this work.
 
 Variance of q is calculated for each node. And used for node selection. Work in progress: variances are calculated with a numerically robust "online" algorithm. Use --verbose-movestats to display variances for each node. These stats are very interesting, next is to use this info in a theoretically sound way in the PUCT formula.
 
-## Validation run 1
+### Validation Runs
 
-10.000 game validation run with all three options enabled (uncertainty-prop=1, auto-extend=1, backpropagate-gamma=0.75)
+10.000 game (100 visits per move) validation run with these options enabled (uncertainty-prop=1, auto-extend=1, backpropagate-gamma=0.75)
 ```
 tournamentstatus final P1: +3220 -2343 =4437 Win: 54.39% Elo: 30.55 LOS: 100.00% P1-W: +1721 -1184 =2095 P1-B: +1499 -1159 =2342
 ```
-Result confirms above single option results and strength contributions seem additive at low visit searches per move. Higher visit match games pending...
+Unfortunately backpropagate-gamma does not scale for larger visit searches. Certainty-propagation has been improved since the above match. The next validation run with all modifications that gain elo will be done as soon as testing of new schemes is complete.
 
 
 ## Miscellaneous
