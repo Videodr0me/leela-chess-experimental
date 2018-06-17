@@ -85,6 +85,10 @@ class Search {
   static const char* kBackpropagateStr;
   static const char* kAutoExtendOnlyMoveStr;
   static const char* kCertaintyPropStr;
+  static const char* kTreeBalanceStr;
+  static const char* kTreeBalanceScaleStr;
+  static const char* kPolicyCompressionStr;
+  static const char* kEasySecondVisitsStr;
   static const char* kOptimalSelectionStr;
   
  private:
@@ -106,7 +110,7 @@ class Search {
   void SendUciInfo();  // Requires nodes_mutex_ to be held.
 
   Node* PickNodeToExtend(Node* node, PositionHistory* history);
-  void ExtendNode(Node* node, const PositionHistory& history);
+  void ExtendNode(Node* node, PositionHistory* history);
 
   mutable Mutex counters_mutex_ ACQUIRED_AFTER(nodes_mutex_);
   // Tells all threads to stop.
@@ -159,9 +163,13 @@ class Search {
   const float kFpuReduction;
   const bool kCacheHistoryLength;
   const float kBackpropagate;
+  const float kTreeBalance;
+  const float kTreeBalanceScale;
+  const float kPolicyCompression;
   const int kCertaintyProp;
   const int kAutoExtendOnlyMove;
   const int kOptimalSelection;
+  const int kEasySecondVisits;
 
 };
 

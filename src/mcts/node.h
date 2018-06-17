@@ -55,7 +55,6 @@ public:
 	Node* GetParent() const { return parent_; }
 
 	// Gets first child
-
 	Node* GetFirstChild() const { return child_; }
 
 	// Returns whether a node has children.
@@ -80,26 +79,40 @@ public:
 	// Returns Q if number of visits is more than 0,
 	float GetQ(float default_q) const { return n_ ? q_ : default_q; }
 	// Returns U / (Puct * N[parent])
-	float GetU() const { return p_/ (1 + n_ + n_in_flight_); }
+	float GetU() const { return p_ / (1 + n_ + n_in_flight_); }
 	// Returns value of Value Head returned from the neural net.
 	float GetV() const { return v_; }
+	// Returns the avg. of children branches (not expanded grandchildren)
+	float GetCB() const { return avg_child_branches_; }
 	// Returns value of Move probabilityreturned from the neural net.
 	// (but can be changed by adding Dirichlet noise).
 	float GetP() const { return p_; }
+	// returns branches of this node (number of childs)
+	float GetB() const {return b_;}
+	// Returns population variance of q.
+	float GetSigma2(float default_m) const { return n_>2 ? m_/(n_-1):default_m; }
 	// Returns whether the node is known to be draw/lose/win.
 	bool IsTerminal() const { return is_terminal_; }
 	// Returns whether the node is known to have a certain score
 	bool IsCertain() const { return is_certain_; }
-
-
-  uint16_t GetFullDepth() const { return full_depth_; }
-  uint16_t GetMaxDepth() const { return max_depth_; }
+    uint16_t GetFullDepth() const { return full_depth_; }
+    uint16_t GetMaxDepth() const { return max_depth_; }
   // makes node uncertain again (used to make root uncertain when search is initialized
   void UnCertain();
+  // Sets node avg of all childrens branches
+  void SetCB(float val) { avg_child_branches_ = val; }
   // Sets node own value (from neural net or win/draw/lose adjudication).
   void SetV(float val) { v_ = val; }
   // Sets move probability.
   void SetP(float val) { p_ = val; }
+  // Sets Q
+  void SetQ(float val) { q_ = val; }
+  // Sets branches (number of childs)
+  void SetB(float val) { b_ = val; }
+  // Sets n_ for terminal nodes that are 
+  // found when creating children in 
+  // expand node
+  void SetN1() { n_ = 1; }
   // Makes the node terminal and sets it's score.
   void MakeTerminal(GameResult result);
   // Makes the node certain and sets it's score
@@ -117,9 +130,11 @@ public:
   // Updates:
   // * N (+=1)
   // * N-in-flight (-=1)
-  // * W (+= v)
-  // * Q (=w/n)
-  // Backpropagete and Autoextend modes are currently passed as parameters
+  // * W (+= v)  obsolete
+  // * Q (+= q + (v - q) (n_+1))
+  // * M Sum of Squares of Differences
+  // kBackpropagate (not used currently) and Autoextend modes are 
+  // currently passed as parameters
   // will either be removed if changes become permanent, or replaced
   // by a weight parameter.
   void FinalizeScoreUpdate(float v, float kBackpropagate, int kAutoextend);
@@ -171,6 +186,11 @@ public:
   // Probabality that this move will be made. From policy head of the neural
   // network.
   float p_;
+  // Sum of Squares of Differences from current mean
+  float m_;
+  // branch data for tree shaping
+  float b_;
+  float avg_child_branches_;
   // How many completed visits this node had.
   uint32_t n_;
   // (aka virtual loss). How many threads currently process this node (started

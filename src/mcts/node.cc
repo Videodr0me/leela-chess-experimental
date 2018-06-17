@@ -206,8 +206,11 @@ void Node::ResetStats() {
   n_ = 0;
   v_ = 0.0;
   q_ = 0.0;
-  w_ = 0.0;
+  w_ = 0.0; // no longer needed
   p_ = 0.0;
+  m_ = 0.0;
+  b_ = 0.0;
+  avg_child_branches_ = 0.0;
   max_depth_ = 0;
   full_depth_ = 0;
   is_terminal_ = false;
@@ -219,7 +222,7 @@ std::string Node::DebugString() const {
   oss << "Move: " << move_.as_string() << " Term:" << is_terminal_
       << " This:" << this << " Parent:" << parent_ << " child:" << child_
       << " sibling:" << sibling_ << " P:" << p_ << " Q:" << q_ << " W:" << w_
-      << " N:" << n_ << " N_:" << n_in_flight_;
+      << " M:" << m_<< " N:" << n_ << " N_:" << n_in_flight_;
   return oss.str();
 }
 
@@ -243,6 +246,7 @@ void Node::MakeCertain(float q) {
 	is_certain_ = true;	
 	//n_ = UINT32_MAX;
 }
+// mainly used for root
 void Node::UnCertain() {
 	is_certain_ = false;
 }
@@ -255,21 +259,28 @@ bool Node::TryStartScoreUpdate() {
 void Node::CancelScoreUpdate() { --n_in_flight_; }
 
 void Node::FinalizeScoreUpdate(float v, float kBackpropagate, int kAutoextend) {
+	float q_new = 0;
 	if (!is_certain_)
 	{
-		// gamma = 1.00 corresponds to base leela q update
-		// gamma = 0.75 is my first guess and yields +25 Elo
-		// lots of room for tuning, optimum probably 0.8-09
-		q_ += (v - q_) / (std::powf(n_, kBackpropagate) + 1);
-		//  normal leela update in q + (v-q) format
-	    //	q_ += (v - q_) / ((float)n_ + 1.0f);
+		// Update Q:
+		// Alternatives:
+		// q_ += (v - q_) / (std::powf(n_, kBackpropagate) + 1);
+		// q_ += (v - q_) / ((n_ * kBackpropagate) + 1);
+		q_new = q_ + (v - q_) / ((float)n_ + 1.0f); //Standard update
 
+		// Update M:
+		// Sum of Squared Difference for Variance Computation
+		// this is a numerically stable online method
+		m_ += (v - q_)*(v - q_new);
+	
+	    q_ = q_new;
 		// all nodes have v_ set to NN compute or to certain value 
 		// except nodes with only one legal move (auto-extend=1)
 		// these must inherit from child
 		if (HasOnlyOneChild() && (kAutoextend == 1)) {
 			q_ = -(child_->q_);
 			v_ = -(child_->v_);
+			m_ = child_->m_;
 		} 
 
 	  // Increment N.

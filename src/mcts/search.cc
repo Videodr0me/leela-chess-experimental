@@ -45,8 +45,12 @@ const char* Search::kVirtualLossBugStr = "Virtual loss bug";
 const char* Search::kFpuReductionStr = "First Play Urgency Reduction";
 const char* Search::kCacheHistoryLengthStr =
     "Length of history to include in cache";
-const char* Search::kBackpropagateStr ="Backpropagate Gamma";
+const char* Search::kBackpropagateStr ="Backpropagate Beta";
+const char* Search::kTreeBalanceStr = "Tree Balance";
+const char* Search::kTreeBalanceScaleStr = "Tree Balance Scale";
 const char* Search::kAutoExtendOnlyMoveStr = "Autoextend";
+const char* Search::kEasySecondVisitsStr = "Easy Early Visits";
+const char* Search::kPolicyCompressionStr = "Policy Compression";
 const char* Search::kCertaintyPropStr = "Certainty Propagation";
 const char* Search::kOptimalSelectionStr = "Optimal Selection";
 namespace {
@@ -70,12 +74,20 @@ void Search::PopulateUciParams(OptionsParser* options) {
   options->Add<IntOption>(kCacheHistoryLengthStr, 0, 7,
                           "cache-history-length") = 7;
   options->Add<FloatOption>(kBackpropagateStr, 0.25, 1.5,
-	  "backpropagate-gamma") = 0.75f;
+	  "backpropagate-beta") = 0.75f;
+  options->Add<FloatOption>(kTreeBalanceStr, -1, 100,
+	  "tree-balance") = 1.00f;
+  options->Add<FloatOption>(kTreeBalanceScaleStr, 0, 100,
+	  "tree-balance-scale") = 1.79374f;
+  options->Add<FloatOption>(kPolicyCompressionStr, 0, 2,
+	  "policy-compression") = 0.0f;
   options->Add<IntOption>(kAutoExtendOnlyMoveStr, 0, 1,
 	  "auto-extend") = 1;
-  options->Add<IntOption>(kCertaintyPropStr, 0, 1,
+  options->Add<IntOption>(kCertaintyPropStr, 0, 3,
 	  "certainty-prop") = 1;
-  options->Add<IntOption>(kOptimalSelectionStr, 0, 1,
+  options->Add<IntOption>(kEasySecondVisitsStr, 0, 1,
+	  "easy-early-visits") = 0;
+  options->Add<IntOption>(kOptimalSelectionStr, 0, 10,
 	  "optimal-select") = 0;
 
 }
@@ -104,8 +116,12 @@ Search::Search(const NodeTree& tree, Network* network,
       kVirtualLossBug(options.Get<float>(kVirtualLossBugStr)),
       kFpuReduction(options.Get<float>(kFpuReductionStr)),
 	  kBackpropagate(options.Get<float>(kBackpropagateStr)), 
+      kTreeBalance(options.Get<float>(kTreeBalanceStr)),
+	  kTreeBalanceScale(options.Get<float>(kTreeBalanceScaleStr)),
+	  kPolicyCompression(options.Get<float>(kPolicyCompressionStr)),
 	  kCertaintyProp(options.Get<int>(kCertaintyPropStr)),
 	  kAutoExtendOnlyMove(options.Get<int>(kAutoExtendOnlyMoveStr)),
+	  kEasySecondVisits(options.Get<int>(kEasySecondVisitsStr)),
 	  kOptimalSelection(options.Get<int>(kOptimalSelectionStr)),
       kCacheHistoryLength(options.Get<int>(kCacheHistoryLengthStr)) {}
 
@@ -174,10 +190,14 @@ void Search::Worker() {
 
   // Exit check is at the end of the loop as at least one iteration is
   // necessary.
+
+  // This should really done when the root node for this search
+  // is determined. But for now it will do just fine here.
+  root_node_->UnCertain();
+
   while (true) {
     nodes_to_process.clear();
     auto computation = CachingComputation(network_->NewComputation(), cache_);
-	root_node_->UnCertain();
     // Gather nodes to process in the current batch.
     for (int i = 0; i < kMiniBatchSize; ++i) {
       // Initialize position sequence with pre-move position.
@@ -188,15 +208,13 @@ void Search::Worker() {
       // If we hit the node that is already processed (by our batch or in
       // another thread) stop gathering and process smaller batch.
       if (!node) break;
-
-     
-      // If node is already known as terminal or certain (win/lose/draw according to rules
-      // of the game), it means that we already visited this node before. 
+      // If node is already known as terminal or certain (win/lose/draw),
+	  // it means that we already visited this node before. 
 	  // Note: All terminal Nodes are also certain
 	  if (node->IsCertain()) { nodes_to_process.push_back(node); continue; }
 
 	  // ExtendNode
-       ExtendNode(node, history);
+       ExtendNode(node, &history);
 
 	  // Autoextend:
 	  // Node might have only one legal move -> these are autoextended until 
@@ -211,9 +229,9 @@ void Search::Worker() {
 				  node = node->GetParent(); break;
 			  }; // This should never fail (path contains n_=0 and n_in_flight>0 nodes) 
 		  }
-		  node->SetP(1.0f); //As we do not use NN on autoextended nodes, and only one legal move
+		  node->SetP(1.0f); // As we do not use NN on autoextended nodes, and only one legal move
 		  history.Append(node->GetMove());
-		  ExtendNode(node, history);
+		  if (!node->IsCertain()) ExtendNode(node, &history);
 	  }
 	  nodes_to_process.push_back(node);
       // If node turned out to be a terminal or certain one, no need to send to NN for
@@ -248,7 +266,7 @@ void Search::Worker() {
         for (Node* n : node->Children()) {
           float p = computation.GetPVal(idx_in_computation,
                                         n->GetMove().as_nn_index());
-          total += p;
+		  total += p;
           n->SetP(p);
         }
         // Scale P values to add up to 1.0.
@@ -268,12 +286,21 @@ void Search::Worker() {
       // Update nodes.
       SharedMutex::Lock lock(nodes_mutex_);
       for (Node* node : nodes_to_process) {
-        float v = node->GetV();
-        // Maximum depth the node is explored.
-        uint16_t depth = 0;
-        // If the node is terminal or certain, mark it as fully explored to an infinite
-        // depth.
-		uint16_t cur_full_depth = node->IsCertain() ? 999 : 0;
+         // Maximum depth the node is explored.
+		uint16_t depth = 0;
+		uint16_t cur_full_depth = 0;
+        // If the node is terminal or certain, mark it as fully explored to depth 999
+		// and set flag that this v update is a certain one
+		// only on certain updates do we need to check children
+		// when backpropagating (saves computation)
+		bool v_is_certain = false;
+		if (node->IsCertain())
+		{
+			cur_full_depth = 999;
+			v_is_certain = true;
+		}
+		
+		float v = node->GetV();		
         bool full_depth_updated = true;
 		for (Node* n = node; n != root_node_->GetParent(); n = n->GetParent()) {
 			++depth;
@@ -283,8 +310,8 @@ void Search::Worker() {
 			// float prev_q = n->GetQ(-3.0f); 
 
 			// MCTS Solver or Proof-Number-Search
-			// kCertaintyProp == 1 
-			if ((depth > 1) && (kCertaintyProp == 1) && (n != root_node_)) {
+			// kCertaintyProp > 0
+			if ( kCertaintyProp && (v_is_certain) && (n!=root_node_)&&(!n->IsCertain())) {
 				bool children_all_certain = true;
 				float max = -2.0f;
 				for (Node* iter : n->Children()) {
@@ -362,7 +389,7 @@ int Search::PrefetchIntoCache(Node* node, int budget,
     return 1;
   }
 
-  // If it's a node in progress of expansion or is terminal, not prefetching.
+  // If it's a node in progress of expansion or is certain, not prefetching.
   if (!node->HasChildren()||node->IsCertain()) return 0;
 
   // Populate all subnodes and their scores.
@@ -519,6 +546,7 @@ void Search::SendMovesStats() const {
   const float parent_q =
       -root_node_->GetQ(0) -
       kFpuReduction * std::sqrt(root_node_->GetVisitedPolicy());
+  const float parent_m = root_node_->GetSigma2(0);
   for (Node* iter : root_node_->Children()) {
     nodes.emplace_back(iter);
   }
@@ -543,6 +571,10 @@ void Search::SendMovesStats() const {
         << "%) ";
     oss << "(Q: " << std::setw(8) << std::setprecision(5)
         << node->GetQ(parent_q) << ") ";
+	oss << "(B: " << std::setw(8) << std::setprecision(5)
+		<< node->GetB() << ") ";
+	oss << "(M: " << std::setw(8) << std::setprecision(5)
+		<< node->GetSigma2(parent_m) << ") ";
     oss << "(U: " << std::setw(6) << std::setprecision(5)
         << node->GetU() * kCpuct *
                std::sqrt(std::max(node->GetParent()->GetChildrenVisits(), 1u))
@@ -554,7 +586,15 @@ void Search::SendMovesStats() const {
                    std::sqrt(
                        std::max(node->GetParent()->GetChildrenVisits(), 1u))
         << ") ";
-    info.comment = oss.str();
+	oss << "(Q+U+M: " << std::setw(8) << std::setprecision(5)
+		<< node->GetQ(parent_q) +
+		node->GetU() * kCpuct *
+		std::sqrt(
+			std::max(node->GetParent()->GetChildrenVisits(), 1u))+
+		node->GetSigma2(parent_m)
+		<< ") ";
+
+	info.comment = oss.str();
     info_callback_(info);
   }
 }
@@ -632,11 +672,18 @@ void Search::UpdateRemainingMoves() {
   if (remaining_playouts_ <= 1) remaining_playouts_ = 1;
 }
 
-void Search::ExtendNode(Node* node, const PositionHistory& history) {
+void Search::ExtendNode(Node* node, PositionHistory* history) {
   // Not taking mutex because other threads will see that N=0 and N-in-flight=1
   // and will not touch this node.
-  const auto& board = history.Last().GetBoard();
+  const auto& board = history->Last().GetBoard();
   auto legal_moves = board.GenerateLegalMoves();
+
+
+  // The following checks can be removed
+  // as I do this in the loop when creating the child nodes 
+  // at the end of ExtendNode
+  // This is just here for legacy and comparison 
+  // purposes, but should really be removed.
 
   // Check whether it's a draw/lose by rules.
   if (legal_moves.empty()) {
@@ -658,20 +705,91 @@ void Search::ExtendNode(Node* node, const PositionHistory& history) {
       return;
     }
 
-    if (history.Last().GetNoCapturePly() >= 100) {
+    if (history->Last().GetNoCapturePly() >= 100) {
       node->MakeTerminal(GameResult::DRAW);
       return;
     }
 
-    if (history.Last().GetRepetitions() >= 2) {
+    if (history->Last().GetRepetitions() >= 2) {
       node->MakeTerminal(GameResult::DRAW);
       return;
     }
   }
 
   // Add legal moves as children to this node.
-  for (const auto& move : legal_moves) node->CreateChild(move);
+  // If --certainty-prop > 0 then
+  // all children are immediatly checked if they 
+  // are terminal. This saves visits near the leaves
+  // and in conjunction with certainty propagateion
+  // also yields some elo
+  bool only_terminal = true;
+  float max_terminal = 0.0f;
+  int sum_child_branches = 0;
+  for (const auto& move : legal_moves)
+  {
+	  node->CreateChild(move);
+	   history->Append(move);
+		  const auto& board = history->Last().GetBoard();
+		  auto legal_moves_child = board.GenerateLegalMoves();
+		  if (kCertaintyProp) {
+		    if (legal_moves_child.empty()) {
+			  // Checkmate or stalemate.
+			  if (board.IsUnderCheck()) {
+				  // Checkmate.
+				  node->GetFirstChild()->MakeTerminal(GameResult::WHITE_WON);
+				  node->GetFirstChild()->SetN1();
+				  if (node != root_node_) {
+					  madecertain_++;
+					  node->MakeCertain(-1.0f);
+				  }
+				  node->GetFirstChild()->SetP(1.0f);
+				  max_terminal = 1.0;
+			  }
+			  else {
+				  // Stalemate.
+				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
+				  node->GetFirstChild()->SetN1();
+			  }
+		  }
+		  else {
+			  if (!board.HasMatingMaterial()) {
+				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
+				  node->GetFirstChild()->SetN1();
+			  }
+
+			  if (history->Last().GetNoCapturePly() >= 100) {
+				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
+				  node->GetFirstChild()->SetN1();
+			  }
+
+			  if (history->Last().GetRepetitions() >= 2) {
+				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
+				  node->GetFirstChild()->SetN1();
+			  }
+		  }
+	    
+	  }
+	  if (!(node->GetFirstChild()->IsTerminal())) only_terminal = false;
+	  // Populate the number of the childs branches
+	  // and sum over all childs for average calculation
+	  node->GetFirstChild()->SetB(legal_moves_child.size());
+	  sum_child_branches += legal_moves_child.size();
+	  history->Pop();
+
+  }
+  // Sets avg. number of branches of all children (=number of potential grandchildren)
+  // this is used for tree shaping
+  node->SetCB((float)sum_child_branches / (float)legal_moves.size());
+
+  // If all children would have been certain the node is certain
+  // with eval -max_terminal
+  if (kCertaintyProp && (only_terminal) && (node != root_node_)) {
+	  madecertain_++;
+	  node->MakeCertain(-max_terminal);
+  }
+ 
 }
+
 
 Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
   // Fetch the current best root node visits for possible smart pruning.
@@ -683,6 +801,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 
   // True on first iteration, false as we dive deeper.
   bool is_root_node = true;
+  // needed for depth dependend search mods
   int pick_depth = 0;
   while (true) {
 	  {
@@ -697,15 +816,13 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 			  }
 			  return nullptr;
 		  }
-		  // Found leave, and we are the the first to visit it. Or Terminal or Certain. (actually we might not be the first to visi)
+		  // Found leave, and we are the the first to visit it or its terminal or certain.
 		  if ((!node->HasChildren()) || node->IsCertain()) return node;
 	  }
 	  // Now we are not in leave, we need to go deeper.
-
-	  // used for optimal-selection
 	  pick_depth++;
 	  SharedMutex::SharedLock lock(nodes_mutex_);
-	  float factor = kCpuct * std::sqrt(std::max(node->GetChildrenVisits(), 1u));
+	  float children_visits = std::max(node->GetChildrenVisits(), 1u);
 	  float best = -100.0f;
 	
 	  int possible_moves = 0;
@@ -715,7 +832,11 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 		  : -node->GetQ(0) -
 		  kFpuReduction * std::sqrt(node->GetVisitedPolicy());
 
+	  float parent_avg_child_branches = node->GetCB();
+	  float parent_branches = node->GetB();
 
+	  // Unused for variance approaches
+	  // float parent_m = node->GetSigma2(0.01);
 	  for (Node* iter : node->Children()) {
 		  if (is_root_node) {
 			  // If there's no chance to catch up the currently best node with
@@ -731,34 +852,66 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 			  ++possible_moves;
 		  }
 		  float Q = iter->GetQ(parent_q);
-		  // If on the move we select always select a certain winning move. 
-		  // As certainty gets backpropageted,this only affects root
-		  // and is here mainly for debugging thread safety
-		  // Must rethink all edge cases, but most likely this can be deleted
+		  uint32_t n = iter->GetN();
+		  // Unused currently
+		  // if ((kOptimalSelection == 5)&&(n<=1)) Q = (parent_q + Q *(float)n) / (float)(n + 1);
 
-		  if ((kCertaintyProp == 1) && (iter->IsCertain()) && (iter->GetQ(-2.0f) == 1.0f)) { node = iter; break; }
+		  // If on the move we always select a certain winning move. 
+		  //if ((kCertaintyProp) && (iter->IsCertain()) && (iter->GetQ(-2.0f) == 1.0f)) { node = iter; break; }
+
 		  if (kVirtualLossBug && iter->GetN() == 0) {
 			  Q = (Q * iter->GetParent()->GetN() - kVirtualLossBug) /
 				  (iter->GetParent()->GetN() + std::fabs(kVirtualLossBug));
 		  }
 
-		  // Optimal selection is an experimental feature 
-		  // Solves tactics by compressing (exponential decay over depth) 
-		  // the 0-1% policy range, allowing
-		  // e.g. moves with policy=0% to have a > 0 exploration term
-		  // In current form it solves >160 WAC positions, but
-		  // looses elo in selfplay -> do not use, except for tactics
-		  // or against other opponents (needs to be tested)
-		  float p =iter->GetP() +  ((kOptimalSelection == 1) ? powf(8,-(pick_depth)) : 0.0f);
+		  // Policy-compression  
+		  // This compresses policy asymetrically. Unlike softmax temp, compression is larger at the low end
+		  // and exponentially reduced by depth -> getting more selective further down the tree
+		  // --policy-compression=0.0 (disabled) - sensible values are e.g. 0.1
+		  // This is a mode for solving tactics. It will probably loose elo in self-play
+		  float p = iter->GetP();
+		  if (kPolicyCompression > 0.0f) p = (p + powf(kPolicyCompression,pick_depth))/(1+parent_branches* powf(kPolicyCompression, pick_depth));
 
+		  // Reserved for empirical variance based 
+		  // approaches
+          // float m = iter->GetSigma2(parent_m) : 0.0f;
 
-		  float score = factor * (p/(iter->GetNStarted()+1)) + Q;
+          // Easy-Early-Visits
+		  // standard implementation "penalizes" early visits slightly 
+          // by using n_started + 1
+		  // this uses max(nstarted,1) instead to avoid divide by 0 
+		  // Just for experimental purposes...
+		  float nstarted = (kEasySecondVisits == 1) ? std::max((float)iter->GetNStarted(), 1.0f) : (iter->GetNStarted() + 1);
 
-		  // We do not need to pick nodes that loose with certainty when on the move. 
-		  // But visiting these "lost" branches can also be a warning signal for remaining moves
-		  // testing is inconclusive - need to revisit this later
-	   	  if ((kCertaintyProp == 1) && (iter->IsCertain()) && (iter->GetQ(-2.0f) == -1.0f)) score = -99.0f;
-
+		  // Tree Balancing:
+		  // Standard simple-regret-sqrt UCT UCB formula assumes constant branching factor
+		  // But in some games nodes can have large differences in their number of childs
+		  // Tree Balancing takes this into account when calculating the upper confidence bound 
+		  // --tree-balance is a parameter affecting the symmetrie of balancing 
+		  // --tree-balance-scaling is a parameter that scales the effect
+		  // This needs each nodes number of branches GetB()
+		  // The average number of branches of all potential candidates (parent->GetCB()) 
+		  // Fortunately this is computed at (almost) no cost in ExtendNode
+		  float b=1.0f;
+		  if ((kTreeBalance > 0.0f) && (iter->GetB() > 0)) 
+			  b = std::min(parent_avg_child_branches / iter->GetB(), kTreeBalance);
+		  if (kTreeBalance > 0.0f)
+		      b = std::powf(b/kTreeBalance, kTreeBalanceScale);
+		 
+		  
+		  // Certain nodes have an UCB of zero+q implying to always avoid loosing branches 
+		  // But visiting these "lost" branches can also be a warning signal for selecting 
+		  // nodes further up the search tree via the q backpropagation (see Winands et al).
+		  // --certainty-prop=3 experimental UCB lowered twice the rate / DRAW -> 0 
+		  // --certainty-prop=2 avoids lost branches
+		  // --certainty-prop=1 visits these branches according to PUCT
+	   	  if ((kCertaintyProp == 2) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
+		  if ((kCertaintyProp == 3) && iter->IsCertain()) {
+			  if (iter->GetQ(-2.0f) == 0.0f) b = 0;
+			  else b = b*0.5;
+		  }
+		  float score = kCpuct * p *  (std::sqrt(children_visits) / (nstarted)) *b  + Q;
+		 
 		  if (score > best) {
 			  best = score;
 			  node = iter;

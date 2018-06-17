@@ -25,7 +25,7 @@
 int main(int argc, const char** argv) {
   std::cerr << "       _" << std::endl;
   std::cerr << "|   _ | |" << std::endl;
-  std::cerr << "|_ |_ |_| built " << __DATE__ << std::endl;
+  std::cerr << "|_ |_ |_| MCTS EXPERIMENTAL " << __DATE__ << std::endl;
   using namespace lczero;
   CommandLine::Init(argc, argv);
   CommandLine::RegisterMode("uci", "(default) Act as UCI engine");
