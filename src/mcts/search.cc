@@ -74,11 +74,11 @@ void Search::PopulateUciParams(OptionsParser* options) {
   options->Add<IntOption>(kCacheHistoryLengthStr, 0, 7,
                           "cache-history-length") = 7;
   options->Add<FloatOption>(kBackpropagateStr, 0.25, 1.5,
-	  "backpropagate-beta") = 0.75f;
+	  "backpropagate-beta") = 1.00f;
   options->Add<FloatOption>(kTreeBalanceStr, -1, 100,
-	  "tree-balance") = 1.00f;
+	  "tree-balance") = 1.5f;
   options->Add<FloatOption>(kTreeBalanceScaleStr, 0, 100,
-	  "tree-balance-scale") = 1.79374f;
+	  "tree-balance-scale") = 1.5f;
   options->Add<FloatOption>(kPolicyCompressionStr, 0, 2,
 	  "policy-compression") = 0.0f;
   options->Add<IntOption>(kAutoExtendOnlyMoveStr, 0, 1,
