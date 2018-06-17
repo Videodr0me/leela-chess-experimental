@@ -27,7 +27,7 @@
 namespace lczero {
 namespace {
 // TODO(mooskagh) Move threads parameter handling to search.
-const int kDefaultThreads = 2;
+const int kDefaultThreads = 3;
 const char* kThreadsOption = "Number of worker threads";
 const char* kDebugLogStr = "Do debug logging into file";
 
@@ -62,7 +62,7 @@ void EngineController::PopulateOptions(OptionsParser* options) {
   options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") =
       backends.empty() ? "<none>" : backends[0];
   options->Add<StringOption>(kNnBackendOptionsStr, "backend-opts");
-  options->Add<FloatOption>(kSlowMoverStr, 0.0, 100.0, "slowmover") = 1.5;
+  options->Add<FloatOption>(kSlowMoverStr, 0.0, 100.0, "slowmover") = 2.5;
 
   Search::PopulateUciParams(options);
 }
