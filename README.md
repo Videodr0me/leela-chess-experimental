@@ -15,7 +15,10 @@ A variant of MCTS-Solver (Winands et. al). For a decription, example positions a
 
 https://github.com/Videodr0me/leela-chess-experimental/wiki/MCTS-Solver---Certainty-Propagation-and-Autoextending
 
-These gain some elo, but also have some additonal nice properties. Leela now finds shallow mates faster and certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations (typically MCTS is slow to revise initial estimates).
+```
+tournamentstatus P1: +181 -152 =667 Win: 51.45% Elo: 10.08 LOS: 94.40% P1-W: +102 -69 =328 P1-B: +79 -83 =339
+```
+Besides the small gain of elo, this has some additonal nice properties. Leela now finds shallow mates faster and certain winning moves at root can be played regardless of visit counts, which is beneficial in time pressure situations (typically MCTS is slow to revise initial estimates).
 
 ### Q-Moving-Average
 Tested some variants of Gudmundsson and Björnsson and Feldman and Domshlak. For a description see:
