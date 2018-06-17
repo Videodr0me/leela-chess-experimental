@@ -77,23 +77,3 @@ https://github.com/Videodr0me/leela-chess-experimental/wiki/Sanity-Tests
 Test parameters were old default cpuct=1.2, fpu-reduction=0.0, and NN 5d46d9c438a6901e7cd8ebfde15ec00117119cabfcd528d4ce5f568243ded5ee
 
 For test positions threads=1 and batchsize=1 were used for reproducability.
-
-Inconclusive results or elo losses. Could not make this work.
-
-
-### UCB1 tuned and other variance based approaches
-
-Variance of q is calculated for each node. And used for node selection. Work in progress: variances are calculated with a numerically robust "online" algorithm. Use --verbose-movestats to display variances for each node. These stats are very interesting, next is to use this info in a theoretically sound way in the PUCT formula.
-
-## Validation Runs
-
-10.000 game (100 visits per move) validation run with these options enabled (uncertainty-prop=1, auto-extend=1, backpropagate-gamma=0.75)
-```
-tournamentstatus final P1: +3220 -2343 =4437 Win: 54.39% Elo: 30.55 LOS: 100.00% P1-W: +1721 -1184 =2095 P1-B: +1499 -1159 =2342
-```
-Unfortunately backpropagate-gamma does not scale for larger visit searches. Certainty-propagation has been improved since the above match. The next validation run with all modifications that gain elo will be done as soon as testing of new schemes is complete.
-
-
-## Miscellaneous
-A number of "sanity tests" of FPU variants, Cpuct and various minor MCTS tweaks can be found here. These are mainly done to corroborate that current leela is working as expected and to restest some minor implementation details in chess:
-https://github.com/Videodr0me/leela-chess-experimental/wiki/Sanity-Tests
