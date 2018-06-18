@@ -5,7 +5,7 @@ Update 17/06/2018: New source, new executable, new parameters and new test resul
 
 I tried a number of MCTS search ideas in lc0. If you find something interesting here feel free to open an issue and discuss. This is a work in progress and purely experimental - new ideas will be added from time to time. This serves as documentation of both the good as well as the bad tries - so do not expect huge gains - but some ideas yield a measurable elo gain.  
 
-Disclaimer: All changes are completely zero, completely game agnostic and need no parameters (except one). 
+Disclaimer: All changes are completely zero and game agnostic.
 
 ## Search Modifications
 
