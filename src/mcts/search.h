@@ -87,6 +87,7 @@ class Search {
   static const char* kCertaintyPropStr;
   static const char* kTreeBalanceStr;
   static const char* kTreeBalanceScaleStr;
+  static const char* kTreeBalanceScaleRStr;
   static const char* kPolicyCompressionStr;
   static const char* kEasySecondVisitsStr;
   static const char* kOptimalSelectionStr;
@@ -165,11 +166,12 @@ class Search {
   const float kBackpropagate;
   const float kTreeBalance;
   const float kTreeBalanceScale;
+  const float kTreeBalanceScaleR;
   const float kPolicyCompression;
   const int kCertaintyProp;
   const int kAutoExtendOnlyMove;
   const int kOptimalSelection;
-  const int kEasySecondVisits;
+  const float kEasySecondVisits;
 
 };
 

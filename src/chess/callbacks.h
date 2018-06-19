@@ -59,7 +59,7 @@ struct ThinkingInfo {
   // Hash fullness * 1000
   int hashfull = -1;
   // Number of certain nodes - terminal nodes
-  int madecertain = 0;
+  int madecertain = -1;
   // Win in centipawns.
   optional<int> score;
   // Best line found. Moves are from perspective of white player.

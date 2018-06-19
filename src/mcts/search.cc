@@ -47,7 +47,8 @@ const char* Search::kCacheHistoryLengthStr =
     "Length of history to include in cache";
 const char* Search::kBackpropagateStr ="Backpropagate Beta";
 const char* Search::kTreeBalanceStr = "Tree Balance";
-const char* Search::kTreeBalanceScaleStr = "Tree Balance Scale";
+const char* Search::kTreeBalanceScaleStr = "Tree Balance Left";
+const char* Search::kTreeBalanceScaleRStr = "Tree Balance Right";
 const char* Search::kAutoExtendOnlyMoveStr = "Autoextend";
 const char* Search::kEasySecondVisitsStr = "Easy Early Visits";
 const char* Search::kPolicyCompressionStr = "Policy Compression";
@@ -76,17 +77,19 @@ void Search::PopulateUciParams(OptionsParser* options) {
   options->Add<FloatOption>(kBackpropagateStr, 0.25, 1.5,
 	  "backpropagate-beta") = 1.00f;
   options->Add<FloatOption>(kTreeBalanceStr, -1, 100,
-	  "tree-balance") = 1.5f;
+	  "tree-balance") = -1.0f;
   options->Add<FloatOption>(kTreeBalanceScaleStr, 0, 100,
-	  "tree-balance-scale") = 1.5f;
+	  "tree-scale-left") = 1.0f;
+  options->Add<FloatOption>(kTreeBalanceScaleRStr, 0, 100,
+	  "tree-scale-right") = 1.0f;
   options->Add<FloatOption>(kPolicyCompressionStr, 0, 2,
 	  "policy-compression") = 0.0f;
   options->Add<IntOption>(kAutoExtendOnlyMoveStr, 0, 1,
 	  "auto-extend") = 1;
-  options->Add<IntOption>(kCertaintyPropStr, 0, 3,
+  options->Add<IntOption>(kCertaintyPropStr, 0, 10,
 	  "certainty-prop") = 1;
-  options->Add<IntOption>(kEasySecondVisitsStr, 0, 1,
-	  "easy-early-visits") = 0;
+  options->Add<FloatOption>(kEasySecondVisitsStr, 0, 1,
+	  "easy-early-visits") = 0.0f;
   options->Add<IntOption>(kOptimalSelectionStr, 0, 10,
 	  "optimal-select") = 0;
 
@@ -118,10 +121,11 @@ Search::Search(const NodeTree& tree, Network* network,
 	  kBackpropagate(options.Get<float>(kBackpropagateStr)), 
       kTreeBalance(options.Get<float>(kTreeBalanceStr)),
 	  kTreeBalanceScale(options.Get<float>(kTreeBalanceScaleStr)),
+      kTreeBalanceScaleR(options.Get<float>(kTreeBalanceScaleRStr)),
 	  kPolicyCompression(options.Get<float>(kPolicyCompressionStr)),
 	  kCertaintyProp(options.Get<int>(kCertaintyPropStr)),
 	  kAutoExtendOnlyMove(options.Get<int>(kAutoExtendOnlyMoveStr)),
-	  kEasySecondVisits(options.Get<int>(kEasySecondVisitsStr)),
+	  kEasySecondVisits(options.Get<float>(kEasySecondVisitsStr)),
 	  kOptimalSelection(options.Get<int>(kOptimalSelectionStr)),
       kCacheHistoryLength(options.Get<int>(kCacheHistoryLengthStr)) {}
 
@@ -340,15 +344,22 @@ void Search::Worker() {
           n->UpdateMaxDepth(depth);
           // Full depth.
           if (full_depth_updated)
-            full_depth_updated = n->UpdateFullDepth(&cur_full_depth);
+          full_depth_updated = n->UpdateFullDepth(&cur_full_depth);
           // Best move.
-            if (n->GetParent() == root_node_) {
-				if (n->IsCertain() && (n->GetQ(2.0f) == 1.0f)) {
-					best_move_node_ = n;
-					// There is a certain win so output it regardless of visits
-				} else if (!best_move_node_ || best_move_node_->GetN() < n->GetN()) {
-              best_move_node_ = n;
-            }
+          if (n->GetParent() == root_node_) {
+			  if (!best_move_node_) best_move_node_ = n;
+			  // If n is winning choose n regardless of visits
+			  // also choose n if bestmove is certainly loosing
+			  // otherwise use number of visits 
+			  if ((n->IsCertain()&&(n->GetQ(2.0f) == 1.0f))||
+				  ((best_move_node_->IsCertain() && best_move_node_->GetQ(2.0f) == -1.0f) &&
+					  (!(n->IsCertain() && (n->GetQ(2.0f) == -1.0f)))))
+				  best_move_node_ = n;
+			  else
+			  {
+				  auto n_decide = (n->IsCertain() && (n->GetQ(2.0f) == -1.0f)) ? 0 : n->GetN();
+				  if (best_move_node_->GetN() < n_decide) best_move_node_ = n;
+			  }
           }
         }
       }
@@ -457,7 +468,7 @@ Node* GetBestChild(Node* parent) {
   //   * If that number is larger than 0, the one wil larger eval wins.
   std::tuple<int, float, float> best(-1, 0.0, 0.0);
   for (Node* node : parent->Children()) {
-    std::tuple<int, float, float> val(node->GetNStarted(), node->GetQ(-10.0),
+    std::tuple<int, float, float> val((node->IsCertain()&&(node->GetQ(-10.0)==-1.0f))?0:node->GetNStarted(), node->GetQ(-10.0),
                                       node->GetP());
     if (val > best) {
       best = val;
@@ -556,6 +567,28 @@ void Search::SendMovesStats() const {
 
   const bool is_black_to_move = played_history_.IsBlackToMove();
   ThinkingInfo info;
+
+  
+  
+  std::ostringstream oss;
+  oss << std::fixed;
+  oss << "Root         N: ";
+  oss << std::right << std::setw(7) << root_node_->GetN() << " (+" << std::setw(3)
+	  << root_node_->GetNInFlight() << ") ";
+  oss << "(V: " << std::setw(6) << std::setprecision(2) << root_node_->GetV() * 100
+	  << "%) ";
+  oss << "            (Q: " << std::setw(8) << std::setprecision(5)
+	  << parent_q << ") ";
+  oss << "(B: " << std::setw(3) << std::setprecision(0)
+	  << root_node_->GetB() << ") ";
+  oss << "(M: " << std::setw(8) << std::setprecision(5)
+	  << parent_m << ") ";
+  oss << "(CB: " << std::setw(5) << std::setprecision(2)
+	  << root_node_->GetCB() << ") ";
+  info.comment = oss.str();
+  info_callback_(info);
+
+	
   for (const Node* node : nodes) {
     std::ostringstream oss;
     oss << std::fixed;
@@ -563,7 +596,7 @@ void Search::SendMovesStats() const {
         << node->GetMove(is_black_to_move).as_string();
     oss << " (" << std::setw(4) << node->GetMove().as_nn_index() << ")";
     oss << " N: ";
-    oss << std::right << std::setw(7) << node->GetN() << " (+" << std::setw(2)
+    oss << std::right << std::setw(7) << node->GetN() << " (+" << std::setw(3)
         << node->GetNInFlight() << ") ";
     oss << "(V: " << std::setw(6) << std::setprecision(2) << node->GetV() * 100
         << "%) ";
@@ -571,27 +604,23 @@ void Search::SendMovesStats() const {
         << "%) ";
     oss << "(Q: " << std::setw(8) << std::setprecision(5)
         << node->GetQ(parent_q) << ") ";
-	oss << "(B: " << std::setw(8) << std::setprecision(5)
+	oss << "(B: " << std::setw(3) << std::setprecision(0)
 		<< node->GetB() << ") ";
 	oss << "(M: " << std::setw(8) << std::setprecision(5)
 		<< node->GetSigma2(parent_m) << ") ";
     oss << "(U: " << std::setw(6) << std::setprecision(5)
-        << node->GetU() * kCpuct *
+        << node->GetU() *
                std::sqrt(std::max(node->GetParent()->GetChildrenVisits(), 1u))
         << ") ";
 
-    oss << "(Q+U: " << std::setw(8) << std::setprecision(5)
+    oss << "(Q+CU: " << std::setw(8) << std::setprecision(5)
         << node->GetQ(parent_q) +
                node->GetU() * kCpuct *
                    std::sqrt(
                        std::max(node->GetParent()->GetChildrenVisits(), 1u))
         << ") ";
-	oss << "(Q+U+M: " << std::setw(8) << std::setprecision(5)
-		<< node->GetQ(parent_q) +
-		node->GetU() * kCpuct *
-		std::sqrt(
-			std::max(node->GetParent()->GetChildrenVisits(), 1u))+
-		node->GetSigma2(parent_m)
+	oss << "(Q+M: " << std::setw(8) << std::setprecision(5)
+		<< node->GetQ(parent_q) +	node->GetSigma2(parent_m)
 		<< ") ";
 
 	info.comment = oss.str();
@@ -780,6 +809,7 @@ void Search::ExtendNode(Node* node, PositionHistory* history) {
   // Sets avg. number of branches of all children (=number of potential grandchildren)
   // this is used for tree shaping
   node->SetCB((float)sum_child_branches / (float)legal_moves.size());
+  if (node == root_node_) node->SetB((float)legal_moves.size());
 
   // If all children would have been certain the node is certain
   // with eval -max_terminal
@@ -817,14 +847,14 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 			  return nullptr;
 		  }
 		  // Found leave, and we are the the first to visit it or its terminal or certain.
-		  if ((!node->HasChildren()) || node->IsCertain()) return node;
+if ((!node->HasChildren()) || node->IsCertain()) return node;
 	  }
 	  // Now we are not in leave, we need to go deeper.
 	  pick_depth++;
 	  SharedMutex::SharedLock lock(nodes_mutex_);
 	  float children_visits = std::max(node->GetChildrenVisits(), 1u);
 	  float best = -100.0f;
-	
+
 	  int possible_moves = 0;
 	  float parent_q =
 		  (is_root_node && kNoise)
@@ -836,7 +866,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 	  float parent_branches = node->GetB();
 
 	  // Unused for variance approaches
-	  // float parent_m = node->GetSigma2(0.01);
+	  float parent_m = node->GetSigma2(0.01);
 	  for (Node* iter : node->Children()) {
 		  if (is_root_node) {
 			  // If there's no chance to catch up the currently best node with
@@ -844,7 +874,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 			  // best_move_node_ can change since best_node_n computation.
 			  // To ensure we have at least one node to expand, always include
 			  // current best node.
-			  if (best_move_node_) if (best_move_node_->IsCertain()&&(best_move_node_->GetQ(-2.0f)==1.0f)) continue;
+			  if (best_move_node_) if (best_move_node_->IsCertain() && (best_move_node_->GetQ(-2.0f) == 1.0f)) continue;
 			  if (iter != best_move_node_ &&
 				  remaining_playouts_ < best_node_n - iter->GetNStarted()) {
 				  continue;
@@ -870,18 +900,18 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 		  // --policy-compression=0.0 (disabled) - sensible values are e.g. 0.1
 		  // This is a mode for solving tactics. It will probably loose elo in self-play
 		  float p = iter->GetP();
-		  if (kPolicyCompression > 0.0f) p = (p + powf(kPolicyCompression,pick_depth))/(1+parent_branches* powf(kPolicyCompression, pick_depth));
+		  if (kPolicyCompression > 0.0f) p = (p + powf(kPolicyCompression, pick_depth)) / (1 + parent_branches* powf(kPolicyCompression, pick_depth));
 
 		  // Reserved for empirical variance based 
 		  // approaches
-          // float m = iter->GetSigma2(parent_m) : 0.0f;
+		  // float m = iter->GetSigma2(parent_m) : 0.0f;
 
-          // Easy-Early-Visits
+		  // Easy-Early-Visits
 		  // standard implementation "penalizes" early visits slightly 
-          // by using n_started + 1
+		  // by using n_started + 1
 		  // this uses max(nstarted,1) instead to avoid divide by 0 
 		  // Just for experimental purposes...
-		  float nstarted = (kEasySecondVisits == 1) ? std::max((float)iter->GetNStarted(), 1.0f) : (iter->GetNStarted() + 1);
+		  float nstarted = (kEasySecondVisits > 0.0f) ? std::max((float)iter->GetNStarted(), kEasySecondVisits) : (iter->GetNStarted() + 1);
 
 		  // Tree Balancing:
 		  // Standard simple-regret-sqrt UCT UCB formula assumes constant branching factor
@@ -892,25 +922,40 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 		  // This needs each nodes number of branches GetB()
 		  // The average number of branches of all potential candidates (parent->GetCB()) 
 		  // Fortunately this is computed at (almost) no cost in ExtendNode
-		  float b=1.0f;
-		  if ((kTreeBalance > 0.0f) && (iter->GetB() > 0)) 
-			  b = std::min(parent_avg_child_branches / iter->GetB(), kTreeBalance);
-		  if (kTreeBalance > 0.0f)
-		      b = std::powf(b/kTreeBalance, kTreeBalanceScale);
-		 
-		  
+		  float b = 1.0f;
+		  if ((kTreeBalance > 0.0f) && (iter->GetB() > 0))
+			  //b = std::min((parent_avg_child_branches +nstarted) / (iter->GetB()+nstarted), kTreeBalance);
+			  b = (parent_avg_child_branches / iter->GetB());
+
+		  if (kTreeBalance > 0.0f) {
+			  b = b / kTreeBalance;
+              if (b < 1)  b = std::powf(b,kTreeBalanceScale);
+			  if (b > 1)  b = std::powf(b,kTreeBalanceScaleR);
+		  }
+
 		  // Certain nodes have an UCB of zero+q implying to always avoid loosing branches 
 		  // But visiting these "lost" branches can also be a warning signal for selecting 
 		  // nodes further up the search tree via the q backpropagation (see Winands et al).
 		  // --certainty-prop=3 experimental UCB lowered twice the rate / DRAW -> 0 
 		  // --certainty-prop=2 avoids lost branches
 		  // --certainty-prop=1 visits these branches according to PUCT
-	   	  if ((kCertaintyProp == 2) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
+
+		  // at root we try always to avoid picking loosing moves (no more signal here) 
+		  if ((kCertaintyProp) && (is_root_node) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
+
+		  if ((kCertaintyProp == 2) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
 		  if ((kCertaintyProp == 3) && iter->IsCertain()) {
-			  if (iter->GetQ(-2.0f) == 0.0f) b = 0;
+			  if (iter->GetQ(-2.0f) == 0.0f) b = 0.0f;
 			  else b = b*0.5;
 		  }
+		  if (kCertaintyProp == 4 && iter->IsCertain()) {
+		    b = b * 1 / ( 1+ std::exp(-1.7f*(pick_depth-4.0f)));
+			}
+
+
 		  float score = kCpuct * p *  (std::sqrt(children_visits) / (nstarted)) *b  + Q;
+		  if (kOptimalSelection==1) score = kCpuct * p * std::max(  (std::sqrt(children_visits) / (nstarted)), iter->GetSigma2(parent_m)) *b + Q;
+
 		 
 		  if (score > best) {
 			  best = score;
