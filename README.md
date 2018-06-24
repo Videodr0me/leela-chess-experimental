@@ -1,7 +1,7 @@
 # leela-chess-experimental
 based on Leela Chess Zero https://github.com/LeelaChessZero
 
-Update 24/06/2018: First results for variance bases approach, many results for tree balancing.
+Update 24/06/2018: First results for variance based approach, many results for tree balancing.
 
 Update 19/06/2018: V2.1, new source, new executable, changes to tree balancing, easy-early-visits
 
