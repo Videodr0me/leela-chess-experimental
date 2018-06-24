@@ -40,7 +40,7 @@ tb=1.3 tsl=1.5 tsr=0.01| V=10000 G=1000 |P1: +49 -42 =409 Win: 50.70% |Elo:  4.8
 
 (1) This version did not use the --tree-scale-right parameter, but setting it to 0.01 will yield identical results
 
-Results seem stable, rating compression on higher visit games is expected due to higher draw rate. A next step would be to  "CLOP" the parameters (preferably at high(er) visit counts). I am still not quite satisfied with the current solution (paramters are much more extreme than my back-of-the-evenlope math suggests) and are working on a variant that focusses more on using the branching information for first node expansions.
+Results seem stable, rating compression on higher visit games is expected due to higher draw rate. A next step would be to  "CLOP" the parameters (preferably at high(er) visit counts). I am still not quite satisfied with the current solution (parameters are much more extreme than my back-of-the-evenlope math suggests) and am working on a variant that focusses more on using the branching information for first node expansions.
 
 More tests to follow
 
