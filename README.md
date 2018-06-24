@@ -14,7 +14,7 @@ Disclaimer: All changes are completely zero and game agnostic.
 ## Search Modifications
 ### Empirical variance based approaches (similar to UCB1-tuned and others) Work in Progress
 
-Empirical variance of q is calculated for each node and used for node selection. The standard upper confidence bound schemes (and leelas/A0 flavour of it)  estimates the implied variance based on sample size (parent in relation to child). These experiments use an estimate based on actual backpropagated q values. Variances are calculated with a numerically robust "online" algorithm and can be displayed by --verbose-movestats. The following is a first (crude) version that shows this can work (1000 games, 2000 visits per game). 
+Empirical variance of q is calculated for each node and used for node selection. The standard upper confidence bound schemes (and leelas/A0 flavour of it)  estimates the implied variance based on sample size (parent in relation to child). These experiments use an estimate based on actual backpropagated q values. Variances are calculated with a numerically robust "online" algorithm and can be displayed by --verbose-movestats. The following is a first (crude) version that shows this can work (1000 games, 2000 visits per move). 
 
 ```
 P1: +159 -139 =702 Win: 51.00% Elo:  6.95 LOS: 87.67% P1-W: +109 -48 =343 P1-B: +50 -91 =359
