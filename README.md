@@ -33,7 +33,7 @@ The upper confidence bound used in LC0's UCT flavor (and that of A0) assumes tha
 Parameters | Match | match result| Elo
 ---------- | ------| --------|----
 tb=1.5 tsl=1.5 tsr=(1)|V=800 G=1000  |P1: +212 -122 =666 Win: 54.50% |Elo: 31.35 LOS: 100.00% 
-tb=1.4 tsl=2.0 tsr = 0.1|V=2000 G=1000 | P1: +90 -80 =477 Win: 50.77% |Elo:  5.37 LOS: 77.84% 
+tb=1.4 tsl=2.0 tsr = 0.1|V=2000 G=647 | P1: +90 -80 =477 Win: 50.77% |Elo:  5.37 LOS: 77.84% 
 tb=1.1 tsl=2.0 tsr =0.3| V=2000 G=1000| P1: +140 -120 =740 Win: 51.00% |Elo:  6.95 LOS: 89.26% 
 tb=1.07 tsl=2.0 tsr=0.2| V=2000 G=1000 |P1: +136 -111 =753 Win: 51.25% |Elo:  8.69 LOS: 94.42% 
 tb=1.3 tsl=1.5 tsr=0.01| V=10000 G=500 |P1: +49 -42 =409 Win: 50.70% |Elo:  4.86 LOS: 76.85% 
