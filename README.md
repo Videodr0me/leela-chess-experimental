@@ -1,7 +1,10 @@
 # leela-chess-experimental
 based on Leela Chess Zero https://github.com/LeelaChessZero
 
+Update 24/06/2018: First results for variance bases approach, many results for tree balancing.
+
 Update 19/06/2018: V2.1, new source, new executable, changes to tree balancing, easy-early-visits
+
 Update 17/06/2018: New source, new executable, new parameters and new test results.
 
 I tried a number of MCTS search ideas in lc0. If you find something interesting here feel free to open an issue and discuss. This is a work in progress and purely experimental - new ideas will be added from time to time. This serves as documentation of both the good as well as the bad tries - so do not expect huge gains - but some ideas yield a measurable elo gain.  
@@ -9,25 +12,35 @@ I tried a number of MCTS search ideas in lc0. If you find something interesting 
 Disclaimer: All changes are completely zero and game agnostic.
 
 ## Search Modifications
+### Empirical variance based approaches (similar to UCB1-tuned and others) Work in Progress
+
+Empirical variance of q is calculated for each node and used for node selection. The standard upper confidence bound schemes (and leelas/A0 flavour of it)  estimates the implied variance based on sample size (parent in relation to child). These experiments use an estimate based on actual backpropagated q values. Variances are calculated with a numerically robust "online" algorithm and can be displayed by --verbose-movestats. The following is a first (crude) version that shows this can work (1000 games, 2000 visits per game). 
+
+```
+P1: +159 -139 =702 Win: 51.00% Elo:  6.95 LOS: 87.67% P1-W: +109 -48 =343 P1-B: +50 -91 =359
+````
+The current version works by adding half normal random noise with mean 0 and the empirical estimate of each nodes variance. This is scaled by a variance-scaling-factore (0.01 in the above match). For unexpanded nodes the parents variance is used. This approach servers as a first proof of concept and can be refined in many ways. It assumes that there an amount of unexplained variance outside of the policy weighted implied UCB. More traditional (non MC) approaches that combine the emprical variance with the implied variance (like UCB1 tuned) did not work very well, often overestimating or underestimating the ucb - probably due to overly simplistic distributional assumptions. One advantage of this simple solution is that it brings the MC back in MCTS, but most likely it can be improved by a more thorough statistical analysis.  
+
+Source and executable soon.
 
 ### Tree Balancing - Work in Progress
-The upper confidence bound used in LC0's UCT flavor (and that of A0) assumes that the confidence bound of a child node is not affected by the local branching factor. However, in some games like Draughts or Chess the number of legal moves (branches) can vary greatly even in the same part of the search tree. This modification is based on the idea that we can use the number of individual branches in relation to the average number of branches to adjust the upper bound when selecting child nodes for expansion.  
+The upper confidence bound used in LC0's UCT flavor (and that of A0) assumes that the confidence bound of a child node is not affected by the local branching factor. However, in some games like Draughts or Chess the number of legal moves (branches) can vary greatly even in the same part of the search tree. This modification is based on the idea that we can use the number of individual branches in relation to the average number of branches to adjust the upper bound when selecting child nodes for expansion. Parameters are:
 
-Initial testing with Parameters:
+--tree-balance
+--tree-scale-left
+--tree-scale-right
 
---tree-balance=1.5
---tree-balance-scale=1.5
+Parameters | Match | match result| Elo
+---------- | ------| --------|----
+tb=1.5 tsl=1.5 tsr=(1)|V=800 G=1000  |P1: +212 -122 =666 Win: 54.50% |Elo: 31.35 LOS: 100.00% 
+tb=1.4 tsl=2.0 tsr = 0.1|V=2000 G=1000 | P1: +90 -80 =477 Win: 50.77% |Elo:  5.37 LOS: 77.84% 
+tb=1.1 tsl=2.0 tsr =0.3| V=2000 G=1000| P1: +140 -120 =740 Win: 51.00% |Elo:  6.95 LOS: 89.26% 
+tb=1.07 tsl=2.0 tsr=0.2| V=2000 G=1000 |P1: +136 -111 =753 Win: 51.25% |Elo:  8.69 LOS: 94.42% 
+tb=1.3 tsl=1.5 tsr=0.01| V=10000 G=1000 |P1: +49 -42 =409 Win: 50.70% |Elo:  4.86 LOS: 76.85% 
 
-at 800 visits per move in 1000 games yielded these results:
-```
-P1: +212 -122 =666 Win: 54.50% Elo: 31.35 LOS: 100.00% P1-W: +126 -49 =325 P1-B: +86 -73 =341
-```
-But more testing is needed at higher visit searches. More results will follow.
- 
-Update: New Parameterset, these values roughly correspond to the above settings:
---tree-balance=1.5
---tree-scale-left=1.5
---tree-scale-right=0.01
+(1) This version did not use the --tree-scale-right parameter, but setting it to 0.01 will yield identical results
+
+Results seem stable, rating compression on higher visit games is expected due to higher draw rate. A next step would be to  "CLOP" the parameters (preferably at high(er) visit counts). I am still not quite satisfied with the current solution (paramters are much more extreme than my back-of-the-evenlope math suggests) and are working on a variant that focusses more on using the branching information for first node expansions.
 
 More tests to follow
 
@@ -77,9 +90,7 @@ https://github.com/Videodr0me/leela-chess-experimental/wiki/Selection:-Don't-tru
 Inconclusive results or elo losses. Could not make this work.
 
 
-### UCB1 tuned and other variance based approaches
 
-Variance of q is calculated for each node. And used for node selection. Work in progress: variances are calculated with a numerically robust "online" algorithm. Use --verbose-movestats to display variances for each node. These stats are very interesting, next is to use this info in a theoretically sound way in the PUCT formula.
 
 ## Validation Runs
 
