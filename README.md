@@ -59,12 +59,16 @@ Update:
 Improvement (v2.1) - if current best move is a certain loss change best move to a non loosing move, even if visits are lower.
 
 ### Compress low policy move probabilites
-Instead of changing softmax temperature this scheme encourages exploration of low policy priors by compressing low probabilites more than high probabilites in relation to search depths. This does well at tactics (>170/200 WAC Silvertestsuite with standard cpuct=1.2) but suffers somewhat in selfplay, even though results against different opponents (non leela) are better. Might be useful for long analysis as it restores MCTS convergence properties (under some circumstances leela would never find moves no matter how many nodes visited.). 
+Instead of changing softmax temperature this scheme encourages exploration of low policy priors by compressing low probabilites more than high probabilites in relation to search depths. This was initially devised to do well at tactics, which usually looses some elo in self-play. But to my suprise when i finally came around to test this at suffiently high visit searches it seems to gain in self-play elo as well. Thanks to EXA for making me aware of this:
+
 ```
--- policy-compression=0.0 (disabled)
----policy-compression=0.1 (medium)
----policy-compression=0.2 (strong)
-```
+P1: +65 -39 =521 Win: 52.08% Elo: 14.46 LOS: 99.46% P1-W: +41 -13 =258 P1-B: +24 -26 =263
+``` 
+
+This is with --policy-compression=0.06 vs. standard leela at 10000 visits per move.
+
+This might also be useful for long analysis as it restores MCTS convergence properties (under some circumstances leela would never find moves no matter how many nodes visited.). 
+
 ### Easy Early Visits:
 Tweaks the formula slightly to encourage early visits. The confidence bound is asymptotically unchanged but second and to a lesser degree third visits are more probable.
 ```
