@@ -27,7 +27,7 @@
 namespace lczero {
 namespace {
 // TODO(mooskagh) Move threads parameter handling to search.
-const int kDefaultThreads = 3;
+const int kDefaultThreads = 2;
 const char* kThreadsOption = "Number of worker threads";
 const char* kDebugLogStr = "Do debug logging into file";
 
