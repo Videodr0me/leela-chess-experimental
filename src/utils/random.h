@@ -30,6 +30,7 @@ class Random {
   double GetDouble(double max_val);
   float GetFloat(float max_val);
   double GetGamma(double alpha, double beta);
+  double GetNormal(double mu, double sigma2);
   int GetGeometric(double p);
   // Both sides are included.
   int GetInt(int min, int max);

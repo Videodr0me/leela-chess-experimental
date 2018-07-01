@@ -258,15 +258,13 @@ bool Node::TryStartScoreUpdate() {
 
 void Node::CancelScoreUpdate() { --n_in_flight_; }
 
-void Node::FinalizeScoreUpdate(float v, float kBackpropagate, int kAutoextend) {
+void Node::FinalizeScoreUpdate(float v,  int kAutoextend) {
 	float q_new = 0;
 	if (!is_certain_)
 	{
 		// Update Q:
-		// Alternatives:
-		// q_ += (v - q_) / (std::powf(n_, kBackpropagate) + 1);
-		// q_ += (v - q_) / ((n_ * kBackpropagate) + 1);
 		q_new = q_ + (v - q_) / ((float)n_ + 1.0f); //Standard update
+		//q_new = q_ + (v - q_) / (powf((float)n_*kBackpropagate,kBackpropagateGamma) + 1.0f); // Gamma Beta
 
 		// Update M:
 		// Sum of Squared Difference for Variance Computation

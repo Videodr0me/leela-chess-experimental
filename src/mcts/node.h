@@ -90,7 +90,7 @@ public:
 	// returns branches of this node (number of childs)
 	float GetB() const {return b_;}
 	// Returns population variance of q.
-	float GetSigma2(float default_m) const { return n_>2 ? m_/(n_-1):default_m; }
+	float GetSigma2(float default_m) const { return n_>1 ? m_/(n_-1):default_m; }
 	// Returns whether the node is known to be draw/lose/win.
 	bool IsTerminal() const { return is_terminal_; }
 	// Returns whether the node is known to have a certain score
@@ -137,7 +137,7 @@ public:
   // currently passed as parameters
   // will either be removed if changes become permanent, or replaced
   // by a weight parameter.
-  void FinalizeScoreUpdate(float v, float kBackpropagate, int kAutoextend);
+  void FinalizeScoreUpdate(float v, int kAutoextend);
 
   // Updates max depth, if new depth is larger.
   void UpdateMaxDepth(int depth);

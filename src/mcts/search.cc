@@ -33,27 +33,31 @@
 
 namespace lczero {
 
-const char* Search::kMiniBatchSizeStr = "Minibatch size for NN inference";
-const char* Search::kMiniPrefetchBatchStr = "Max prefetch nodes, per NN call";
-const char* Search::kCpuctStr = "Cpuct MCTS option";
-const char* Search::kTemperatureStr = "Initial temperature";
-const char* Search::kTempDecayMovesStr = "Moves with temperature decay";
-const char* Search::kNoiseStr = "Add Dirichlet noise at root node";
-const char* Search::kVerboseStatsStr = "Display verbose move stats";
-const char* Search::kSmartPruningStr = "Enable smart pruning";
-const char* Search::kVirtualLossBugStr = "Virtual loss bug";
-const char* Search::kFpuReductionStr = "First Play Urgency Reduction";
-const char* Search::kCacheHistoryLengthStr =
-    "Length of history to include in cache";
-const char* Search::kBackpropagateStr ="Backpropagate Beta";
-const char* Search::kTreeBalanceStr = "Tree Balance";
-const char* Search::kTreeBalanceScaleStr = "Tree Balance Left";
-const char* Search::kTreeBalanceScaleRStr = "Tree Balance Right";
-const char* Search::kAutoExtendOnlyMoveStr = "Autoextend";
-const char* Search::kEasySecondVisitsStr = "Easy Early Visits";
-const char* Search::kPolicyCompressionStr = "Policy Compression";
-const char* Search::kCertaintyPropStr = "Certainty Propagation";
-const char* Search::kOptimalSelectionStr = "Optimal Selection";
+	const char* Search::kMiniBatchSizeStr = "Minibatch size for NN inference";
+	const char* Search::kMiniPrefetchBatchStr = "Max prefetch nodes, per NN call";
+	const char* Search::kCpuctStr = "Cpuct MCTS option";
+	const char* Search::kTemperatureStr = "Initial temperature";
+	const char* Search::kTempDecayMovesStr = "Moves with temperature decay";
+	const char* Search::kNoiseStr = "Add Dirichlet noise at root node";
+	const char* Search::kVerboseStatsStr = "Display verbose move stats";
+	const char* Search::kSmartPruningStr = "Enable smart pruning";
+	const char* Search::kVirtualLossBugStr = "Virtual loss bug";
+	const char* Search::kFpuReductionStr = "First Play Urgency Reduction";
+	const char* Search::kCacheHistoryLengthStr =
+		"Length of history to include in cache";
+	//const char* Search::kBackpropagateStr = "Backpropagate Beta";
+	//const char* Search::kBackpropagateGammaStr = "Backpropagate Gaama";
+	const char* Search::kTreeBalanceStr = "Tree Balance";
+	const char* Search::kTreeBalanceScaleStr = "Tree Balance Left";
+	const char* Search::kTreeBalanceScaleRStr = "Tree Balance Right";
+	const char* Search::kVarianceScalingStr = "Variance Scaling";
+	const char* Search::kAutoExtendOnlyMoveStr = "Autoextend";
+	const char* Search::kEasySecondVisitsStr = "Easy Early Visits";
+	const char* Search::kPolicyCompressionStr = "Policy Compression";
+	const char* Search::kPolicyCompressionDecayStr = "Policy Compression Decay";
+	const char* Search::kCertaintyPropStr = "Certainty Propagation";
+	const char* Search::kOptimalSelectionStr = "Optimal Selection";
+	const char* Search::kPolicySoftmaxTempStr = "Policy softmax temperature";
 namespace {
 const int kSmartPruningToleranceNodes = 100;
 const int kSmartPruningToleranceMs = 200;
@@ -74,16 +78,22 @@ void Search::PopulateUciParams(OptionsParser* options) {
       0.0f;
   options->Add<IntOption>(kCacheHistoryLengthStr, 0, 7,
                           "cache-history-length") = 7;
-  options->Add<FloatOption>(kBackpropagateStr, 0.25, 1.5,
-	  "backpropagate-beta") = 1.00f;
+  //options->Add<FloatOption>(kBackpropagateStr, 0.01, 4.5,
+  //	  "backpropagate-beta") = 1.00f;
+  //options->Add<FloatOption>(kBackpropagateGammaStr, 0.01, 4.5,
+  //	  "backpropagate-gamma") = 1.00f;
   options->Add<FloatOption>(kTreeBalanceStr, -1, 100,
 	  "tree-balance") = -1.0f;
-  options->Add<FloatOption>(kTreeBalanceScaleStr, 0, 100,
+  options->Add<FloatOption>(kTreeBalanceScaleStr, 0, 10,
 	  "tree-scale-left") = 1.0f;
-  options->Add<FloatOption>(kTreeBalanceScaleRStr, 0, 100,
+  options->Add<FloatOption>(kTreeBalanceScaleRStr, -1, 10,
 	  "tree-scale-right") = 1.0f;
   options->Add<FloatOption>(kPolicyCompressionStr, 0, 2,
 	  "policy-compression") = 0.0f;
+  options->Add<FloatOption>(kPolicyCompressionDecayStr, 0, 2,
+	  "policy-compression-decay") = 1.0f;
+  options->Add<FloatOption>(kVarianceScalingStr, -2, 2,
+	  "variance-scaling") = 0.0f;
   options->Add<IntOption>(kAutoExtendOnlyMoveStr, 0, 1,
 	  "auto-extend") = 1;
   options->Add<IntOption>(kCertaintyPropStr, 0, 10,
@@ -92,7 +102,8 @@ void Search::PopulateUciParams(OptionsParser* options) {
 	  "easy-early-visits") = 0.0f;
   options->Add<IntOption>(kOptimalSelectionStr, 0, 10,
 	  "optimal-select") = 0;
-
+  options->Add<FloatOption>(kPolicySoftmaxTempStr, 0.001, 10.0,
+	  "policy-softmax-temp") = 1.0f;
 }
 
 Search::Search(const NodeTree& tree, Network* network,
@@ -118,16 +129,20 @@ Search::Search(const NodeTree& tree, Network* network,
       kSmartPruning(options.Get<bool>(kSmartPruningStr)),
       kVirtualLossBug(options.Get<float>(kVirtualLossBugStr)),
       kFpuReduction(options.Get<float>(kFpuReductionStr)),
-	  kBackpropagate(options.Get<float>(kBackpropagateStr)), 
+	//  kBackpropagate(options.Get<float>(kBackpropagateStr)), 
+	 // kBackpropagateGamma(options.Get<float>(kBackpropagateGammaStr)),
       kTreeBalance(options.Get<float>(kTreeBalanceStr)),
 	  kTreeBalanceScale(options.Get<float>(kTreeBalanceScaleStr)),
       kTreeBalanceScaleR(options.Get<float>(kTreeBalanceScaleRStr)),
 	  kPolicyCompression(options.Get<float>(kPolicyCompressionStr)),
-	  kCertaintyProp(options.Get<int>(kCertaintyPropStr)),
+	 kPolicyCompressionDecay(options.Get<float>(kPolicyCompressionDecayStr)),
+	kCertaintyProp(options.Get<int>(kCertaintyPropStr)),
 	  kAutoExtendOnlyMove(options.Get<int>(kAutoExtendOnlyMoveStr)),
 	  kEasySecondVisits(options.Get<float>(kEasySecondVisitsStr)),
 	  kOptimalSelection(options.Get<int>(kOptimalSelectionStr)),
-      kCacheHistoryLength(options.Get<int>(kCacheHistoryLengthStr)) {}
+	  kPolicySoftmaxTemp(options.Get<float>(kPolicySoftmaxTempStr)),
+     kVarianceScaling(options.Get<float>(kVarianceScalingStr)),
+	kCacheHistoryLength(options.Get<int>(kCacheHistoryLengthStr)) {}
 
 // Returns whether node was already in cache.
 bool Search::AddNodeToCompute(Node* node, CachingComputation* computation,
@@ -270,6 +285,7 @@ void Search::Worker() {
         for (Node* n : node->Children()) {
           float p = computation.GetPVal(idx_in_computation,
                                         n->GetMove().as_nn_index());
+		 if (kPolicySoftmaxTemp != 1.0f) p = std::powf(p, 1 / kPolicySoftmaxTemp);
 		  total += p;
           n->SetP(p);
         }
@@ -329,7 +345,7 @@ void Search::Worker() {
 				};
 			}
 
-     	  n->FinalizeScoreUpdate(v, kBackpropagate, kAutoExtendOnlyMove);
+     	  n->FinalizeScoreUpdate(v, kAutoExtendOnlyMove);
 
 		  // This is "turbo" certainty propagation - adjusts v so that if propagated up the tree
 		  // all q values are adjusted as if all visits to this branch (previous visits)
@@ -886,7 +902,7 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 		  // Unused currently
 		  // if ((kOptimalSelection == 5)&&(n<=1)) Q = (parent_q + Q *(float)n) / (float)(n + 1);
 
-		  // If on the move we always select a certain winning move. 
+		  // If on the move we always select a certain winning move. Not necessary as it should backpropagate to one ply earlier 
 		  //if ((kCertaintyProp) && (iter->IsCertain()) && (iter->GetQ(-2.0f) == 1.0f)) { node = iter; break; }
 
 		  if (kVirtualLossBug && iter->GetN() == 0) {
@@ -900,7 +916,7 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 		  // --policy-compression=0.0 (disabled) - sensible values are e.g. 0.1
 		  // This is a mode for solving tactics. It will probably loose elo in self-play
 		  float p = iter->GetP();
-		  if (kPolicyCompression > 0.0f) p = (p + powf(kPolicyCompression, pick_depth)) / (1 + parent_branches* powf(kPolicyCompression, pick_depth));
+		  if (kPolicyCompression > 0.0f) p = (p + powf(kPolicyCompression, 1+(pick_depth-1)*kPolicyCompressionDecay)) / (1 + parent_branches* powf(kPolicyCompression, 1+(pick_depth-1)*kPolicyCompressionDecay));
 
 		  // Reserved for empirical variance based 
 		  // approaches
@@ -932,10 +948,25 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
               if (b < 1)  b = std::powf(b,kTreeBalanceScale);
 			  if (b > 1)  b = std::powf(b,kTreeBalanceScaleR);
 		  }
+          if (kOptimalSelection == 1)
+	      {
+			  b = 1;
+              if (kTreeBalanceScaleR < 0.0f)
+				  Q+= (iter->GetB() > 0) ? ((parent_avg_child_branches - iter->GetB() - kTreeBalance)*kTreeBalanceScale) : 0;
+			  else Q += ((iter->GetN() <= kTreeBalanceScaleR ) && (iter->GetB() > 0)) ? ((parent_avg_child_branches - iter->GetB() - kTreeBalance)*kTreeBalanceScale) : 0;
+		  }
+		  if (kOptimalSelection == 2)
+		  {
+			  b = 1;
+			  if (kTreeBalanceScaleR < 0.0f)
+				  Q += (iter->GetB() > 0) ? (((parent_avg_child_branches - iter->GetB()-kTreeBalance) / parent_avg_child_branches)*kTreeBalanceScale) : 0;
+			  else Q += ((iter->GetN() <= kTreeBalanceScaleR) && (iter->GetB() > 0)) ? (((parent_avg_child_branches - iter->GetB() - kTreeBalance) / parent_avg_child_branches)*kTreeBalanceScale) : 0;
+		  }
 
 		  // Certain nodes have an UCB of zero+q implying to always avoid loosing branches 
 		  // But visiting these "lost" branches can also be a warning signal for selecting 
 		  // nodes further up the search tree via the q backpropagation (see Winands et al).
+		  // --certainty-prop=4 experimental depth dependent logistic function
 		  // --certainty-prop=3 experimental UCB lowered twice the rate / DRAW -> 0 
 		  // --certainty-prop=2 avoids lost branches
 		  // --certainty-prop=1 visits these branches according to PUCT
@@ -943,20 +974,29 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 		  // at root we try always to avoid picking loosing moves (no more signal here) 
 		  if ((kCertaintyProp) && (is_root_node) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
 
+		  // certainty-prop=2: avoid selecting loosing moves
 		  if ((kCertaintyProp == 2) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
+
+		  // certainty-prop=3: draw -> UCB = 0  otherwise half UCB
 		  if ((kCertaintyProp == 3) && iter->IsCertain()) {
 			  if (iter->GetQ(-2.0f) == 0.0f) b = 0.0f;
-			  else b = b*0.5;
+			  else b = b*0.5f;
 		  }
+
+		  // certainty-prop=4: depth dependend logistic UCB
 		  if (kCertaintyProp == 4 && iter->IsCertain()) {
 		    b = b * 1 / ( 1+ std::exp(-1.7f*(pick_depth-4.0f)));
 			}
 
+		  // Empirical-Variance 
+		  if (kVarianceScaling != 0.0f ) {
+			  float q_mc = std::abs(Random::Get().GetNormal(0, iter->GetSigma2(parent_m))); //Hackish: replace with proper truncated normal
+			  if ((q_mc * kVarianceScaling + Q) > 1)  Q = 1; else Q += q_mc * kVarianceScaling;
+		  }
 
-		  float score = kCpuct * p *  (std::sqrt(children_visits) / (nstarted)) *b  + Q;
-		  if (kOptimalSelection==1) score = kCpuct * p * std::max(  (std::sqrt(children_visits) / (nstarted)), iter->GetSigma2(parent_m)) *b + Q;
 
-		 
+		  float score = kCpuct * p *  (std::sqrt(children_visits) / (nstarted)) *b + Q;
+
 		  if (score > best) {
 			  best = score;
 			  node = iter;

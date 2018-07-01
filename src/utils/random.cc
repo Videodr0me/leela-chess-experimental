@@ -69,5 +69,10 @@ int Random::GetGeometric(double p) {
 	return dist(gen_);
 }
 
-
+double Random::GetNormal(double mu, double sigma2) {
+	//std::default_random_engine generator;
+	Mutex::Lock lock(mutex_);
+	std::normal_distribution<double> dist(mu,std::sqrt(sigma2));
+	return dist(gen_);
+}
 }  // namespace lczero

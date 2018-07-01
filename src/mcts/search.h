@@ -82,15 +82,20 @@ class Search {
   static const char* kVirtualLossBugStr;
   static const char* kFpuReductionStr;
   static const char* kCacheHistoryLengthStr;
-  static const char* kBackpropagateStr;
+ // static const char* kBackpropagateStr;
+ // static const char* kBackpropagateGammaStr;
   static const char* kAutoExtendOnlyMoveStr;
   static const char* kCertaintyPropStr;
   static const char* kTreeBalanceStr;
   static const char* kTreeBalanceScaleStr;
   static const char* kTreeBalanceScaleRStr;
   static const char* kPolicyCompressionStr;
+  static const char* kPolicyCompressionDecayStr;
   static const char* kEasySecondVisitsStr;
   static const char* kOptimalSelectionStr;
+  static const char* kPolicySoftmaxTempStr;
+  static const char* kVarianceScalingStr;
+
   
  private:
   // Can run several copies of it in separate threads.
@@ -163,15 +168,19 @@ class Search {
   const float kVirtualLossBug;
   const float kFpuReduction;
   const bool kCacheHistoryLength;
-  const float kBackpropagate;
+ // const float kBackpropagate;
+ // const float kBackpropagateGamma;
   const float kTreeBalance;
   const float kTreeBalanceScale;
   const float kTreeBalanceScaleR;
   const float kPolicyCompression;
+  const float kPolicyCompressionDecay;
   const int kCertaintyProp;
   const int kAutoExtendOnlyMove;
   const int kOptimalSelection;
   const float kEasySecondVisits;
+  const float kPolicySoftmaxTemp;
+  const float kVarianceScaling;
 
 };
 
