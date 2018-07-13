@@ -201,6 +201,13 @@ float Node::GetVisitedPolicy() const {
   return res;
 }
 
+uint32_t Node::GetRealChildrenVisits() {
+	uint32_t no = 0;
+	for (const Node* node : Children()) no += node->GetN();
+	return no;
+
+}
+
 void Node::ResetStats() {
   n_in_flight_ = 0;
   n_ = 0;

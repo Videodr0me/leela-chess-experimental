@@ -66,7 +66,7 @@ const int kSmartPruningToleranceMs = 200;
 void Search::PopulateUciParams(OptionsParser* options) {
   options->Add<IntOption>(kMiniBatchSizeStr, 1, 1024, "minibatch-size") = 256;
   options->Add<IntOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 32;
-  options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 1.2;
+  options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 1.2f;
   options->Add<FloatOption>(kTemperatureStr, 0, 100, "temperature") = 0.0;
   options->Add<IntOption>(kTempDecayMovesStr, 0, 100, "tempdecay-moves") = 0;
   options->Add<BoolOption>(kNoiseStr, "noise", 'n') = false;
@@ -90,7 +90,7 @@ void Search::PopulateUciParams(OptionsParser* options) {
 	  "tree-scale-right") = 1.0f;
   options->Add<FloatOption>(kPolicyCompressionStr, 0, 2,
 	  "policy-compression") = 0.0f;
-  options->Add<FloatOption>(kPolicyCompressionDecayStr, 0, 2,
+  options->Add<FloatOption>(kPolicyCompressionDecayStr, -1, 2,
 	  "policy-compression-decay") = 1.0f;
   options->Add<FloatOption>(kVarianceScalingStr, -2, 2,
 	  "variance-scaling") = 0.0f;
@@ -212,7 +212,11 @@ void Search::Worker() {
 
   // This should really done when the root node for this search
   // is determined. But for now it will do just fine here.
-  root_node_->UnCertain();
+  if (root_node_->IsCertain()&&(!(root_node_->IsTerminal())))
+  {
+	  root_node_->UnCertain();
+	  root_node_->SetN(root_node_->GetRealChildrenVisits()+1);
+  }
 
   while (true) {
     nodes_to_process.clear();
@@ -316,12 +320,13 @@ void Search::Worker() {
 		bool v_is_certain = false;
 		if (node->IsCertain())
 		{
-			cur_full_depth = 999;
+			if (node->IsTerminal()) cur_full_depth = 999;
 			v_is_certain = true;
 		}
 		
 		float v = node->GetV();		
         bool full_depth_updated = true;
+		//best_certain_move_node_ = nullptr;
 		for (Node* n = node; n != root_node_->GetParent(); n = n->GetParent()) {
 			++depth;
 
@@ -331,15 +336,25 @@ void Search::Worker() {
 
 			// MCTS Solver or Proof-Number-Search
 			// kCertaintyProp > 0
-			if ( kCertaintyProp && (v_is_certain) && (n!=root_node_)&&(!n->IsCertain())) {
+			if ( kCertaintyProp && ((v_is_certain)||(n==root_node_)) &&(!n->IsCertain())) {
 				bool children_all_certain = true;
-				float max = -2.0f;
+				float best_certain_v = -3.0f;
+				Node *best_certain_node = nullptr;
 				for (Node* iter : n->Children()) {
 					if (!iter->IsCertain()) { children_all_certain = false; }
-					else if ((iter->GetQ(-2.0f)) > max) max = iter->GetQ(-2.0f);
+					else if ((iter->GetV()) >= best_certain_v) {
+						   if (iter->GetV() != best_certain_v)  best_certain_node = iter;
+						   else if (best_certain_v == 0.0f) {
+							    	if (!(iter->IsTerminal()) && (iter->GetParent()->GetV() > 0.0f)) best_certain_node = iter;
+								    if ((iter->GetParent()->GetV() <= 0.0f) && (iter->IsTerminal())) best_certain_node = iter;
+								} 
+							best_certain_v = iter->GetV();
+						 }
 				}
-				if ((children_all_certain) || (max == 1.0f)) {
-					v = -max;
+				if (n == root_node_) best_certain_move_node_ = best_certain_node;
+
+				if (((children_all_certain) || (best_certain_v == 1.0f))&& (n != root_node_)) {
+					v = -best_certain_v;
 					n->MakeCertain(v);
 					++madecertain_;
 				};
@@ -362,20 +377,19 @@ void Search::Worker() {
           if (full_depth_updated)
           full_depth_updated = n->UpdateFullDepth(&cur_full_depth);
           // Best move.
+		  if ((n == root_node_) && candidate_move_node_)
+		  {
+			  if ((!kCertaintyProp)||(!best_certain_move_node_ && kCertaintyProp))
+				  best_move_node_ = candidate_move_node_;
+			  else 
+				  if (candidate_move_node_->GetQ(-2.0f) > best_certain_move_node_->GetV())
+				    best_move_node_ = candidate_move_node_; 
+			      else  
+				    best_move_node_ = best_certain_move_node_;
+		  }
           if (n->GetParent() == root_node_) {
-			  if (!best_move_node_) best_move_node_ = n;
-			  // If n is winning choose n regardless of visits
-			  // also choose n if bestmove is certainly loosing
-			  // otherwise use number of visits 
-			  if ((n->IsCertain()&&(n->GetQ(2.0f) == 1.0f))||
-				  ((best_move_node_->IsCertain() && best_move_node_->GetQ(2.0f) == -1.0f) &&
-					  (!(n->IsCertain() && (n->GetQ(2.0f) == -1.0f)))))
-				  best_move_node_ = n;
-			  else
-			  {
-				  auto n_decide = (n->IsCertain() && (n->GetQ(2.0f) == -1.0f)) ? 0 : n->GetN();
-				  if (best_move_node_->GetN() < n_decide) best_move_node_ = n;
-			  }
+			  if (!candidate_move_node_) candidate_move_node_ = n;
+			  if ((candidate_move_node_->GetN() < n->GetN())||(kCertaintyProp && candidate_move_node_->IsCertain())) candidate_move_node_ = n;
           }
         }
       }
@@ -475,28 +489,55 @@ int Search::PrefetchIntoCache(Node* node, int budget,
 
 namespace {
 // Returns a child with most visits.
-Node* GetBestChild(Node* parent) {
+Node* GetBestChild(Node* parent, int kCertaintyProp, Node* root) {
   Node* best_node = nullptr;
   // Best child is selected using the following criteria:
   // * Largest number of playouts.
   // * If two nodes have equal number:
-  //   * If that number is 0, the one with larger prior wins.
-  //   * If that number is larger than 0, the one wil larger eval wins.
+  //   * If that number is 0, the one with larger eval wins.
+  //   * If that number is equal, the one wil larger prior wins.
+  // Certainty Propagation:
+  // Parent = Root: with certainty Propagation we do not longer moves that 
+  // become certain - so at root we choose move with highest n
+  // but if there exists a higher certain q we take that
+  // between certain draws, the terminal draw is choosen if parent v <= 0
+  // and the certain draw (twofold, or by backpropagation) if parent v > 0 
+  // Parent != Root: Choose only non loosing moves and if theres a certain win choose that.
+  
   std::tuple<int, float, float> best(-1, 0.0, 0.0);
+  Node* best_node_certain = nullptr;
+  float best_v_certain = -100.0f;
   for (Node* node : parent->Children()) {
-    std::tuple<int, float, float> val((node->IsCertain()&&(node->GetQ(-10.0)==-1.0f))?0:node->GetNStarted(), node->GetQ(-10.0),
-                                      node->GetP());
+    std::tuple<int, float, float> val((kCertaintyProp && node->IsCertain() && (node->GetV()==-1.0f))?-1:node->GetNStarted(), node->GetQ(-10.0), node->GetP());
     if (val > best) {
       best = val;
       best_node = node;
     }
+
+	if (kCertaintyProp && (parent == root) && node->IsCertain()) {
+		if (node->GetV() >= best_v_certain) {
+			if (node->GetV() != best_v_certain) best_node_certain = node;
+			else if (best_v_certain == 0.0f) {
+			    	if (!(node->IsTerminal()) && (parent->GetV() > 0.0f)) best_node_certain = node;
+				    if ((parent->GetV() <= 0.0f) && (node->IsTerminal())) best_node_certain = node;
+			     }
+			best_v_certain = node->GetV();
+		}
+	}
 	// If win is certain use that node instead of above criteria
-	if (node->IsCertain() && (node->GetQ(-2.0f) == 1.0f))
+	if (kCertaintyProp && node->IsCertain() && (node->GetV() == 1.0f))
 	{
 		best_node = node;
 		best = val;
 		break;
 	}
+  }
+
+
+  if ((parent == root)&&(best_node_certain))
+  {
+	  if (best_v_certain > best_node->GetQ(-1.0))
+		  best_node = best_node_certain;
   }
   return best_node;
 }
@@ -541,7 +582,7 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
 
   bool flip = played_history_.IsBlackToMove();
   for (Node* iter = best_move_node_; iter;
-       iter = GetBestChild(iter), flip = !flip) {
+       iter = GetBestChild(iter, kCertaintyProp, root_node_), flip = !flip) {
     uci_info_.pv.push_back(iter->GetMove(flip));
   }
   uci_info_.comment.clear();
@@ -556,7 +597,7 @@ void Search::MaybeOutputInfo() {
   if (!responded_bestmove_ && best_move_node_ &&
 	  (best_move_node_ != last_outputted_best_move_node_ ||
 		  uci_info_.depth != root_node_->GetFullDepth() ||
-		  ((uci_info_.time  + 1000) < GetTimeSinceStart())  ||
+		  ((uci_info_.time  + 2000) < GetTimeSinceStart())  ||
        uci_info_.seldepth != root_node_->GetMaxDepth())) {
     SendUciInfo();
   }
@@ -591,7 +632,7 @@ void Search::SendMovesStats() const {
   oss << "Root         N: ";
   oss << std::right << std::setw(7) << root_node_->GetN() << " (+" << std::setw(3)
 	  << root_node_->GetNInFlight() << ") ";
-  oss << "(V: " << std::setw(6) << std::setprecision(2) << root_node_->GetV() * 100
+  oss << "(V: " << std::setw(7) << std::setprecision(2) << -root_node_->GetV() * 100
 	  << "%) ";
   oss << "            (Q: " << std::setw(8) << std::setprecision(5)
 	  << parent_q << ") ";
@@ -614,7 +655,7 @@ void Search::SendMovesStats() const {
     oss << " N: ";
     oss << std::right << std::setw(7) << node->GetN() << " (+" << std::setw(3)
         << node->GetNInFlight() << ") ";
-    oss << "(V: " << std::setw(6) << std::setprecision(2) << node->GetV() * 100
+    oss << "(V: " << std::setw(7) << std::setprecision(2) << node->GetV() * 100
         << "%) ";
     oss << "(P: " << std::setw(5) << std::setprecision(2) << node->GetP() * 100
         << "%) ";
@@ -622,19 +663,23 @@ void Search::SendMovesStats() const {
         << node->GetQ(parent_q) << ") ";
 	oss << "(B: " << std::setw(3) << std::setprecision(0)
 		<< node->GetB() << ") ";
-	oss << "(M: " << std::setw(8) << std::setprecision(5)
+	if (node->IsCertain()) {
+		if (!node->IsTerminal()) oss << "(CERTAIN    ) ";
+		else                     oss << "(TERMINAL   ) ";
+	} else oss << "(M: " << std::setw(8) << std::setprecision(5)
 		<< node->GetSigma2(parent_m) << ") ";
-    oss << "(U: " << std::setw(6) << std::setprecision(5)
-        << node->GetU() *
-               std::sqrt(std::max(node->GetParent()->GetChildrenVisits(), 1u))
-        << ") ";
+		oss << "(U: " << std::setw(6) << std::setprecision(5)
+			<< node->GetU() *
+			std::sqrt(std::max(node->GetParent()->GetChildrenVisits(), 1u))
+			<< ") ";
 
-    oss << "(Q+CU: " << std::setw(8) << std::setprecision(5)
-        << node->GetQ(parent_q) +
-               node->GetU() * kCpuct *
-                   std::sqrt(
-                       std::max(node->GetParent()->GetChildrenVisits(), 1u))
-        << ") ";
+		oss << "(Q+CU: " << std::setw(8) << std::setprecision(5)
+			<< node->GetQ(parent_q) +
+			node->GetU() * kCpuct *
+			std::sqrt(
+				std::max(node->GetParent()->GetChildrenVisits(), 1u))
+			<< ") ";
+	
 	oss << "(Q+M: " << std::setw(8) << std::setprecision(5)
 		<< node->GetQ(parent_q) +	node->GetSigma2(parent_m)
 		<< ") ";
@@ -674,6 +719,8 @@ void Search::MaybeTriggerStop() {
     best_move_callback_({best_move_.first, best_move_.second});
     responded_bestmove_ = true;
     best_move_node_ = nullptr;
+	candidate_move_node_ = nullptr;
+	best_certain_move_node_ = nullptr;
   }
 }
 
@@ -731,6 +778,7 @@ void Search::ExtendNode(Node* node, PositionHistory* history) {
   // purposes, but should really be removed.
 
   // Check whether it's a draw/lose by rules.
+
   if (legal_moves.empty()) {
     // Checkmate or stalemate.
     if (board.IsUnderCheck()) {
@@ -759,6 +807,12 @@ void Search::ExtendNode(Node* node, PositionHistory* history) {
       node->MakeTerminal(GameResult::DRAW);
       return;
     }
+	else if ((history->Last().GetRepetitions() >= 1)&&kCertaintyProp)
+	{
+		node->MakeCertain(0.0f);
+		madecertain_++;
+	}
+
   }
 
   // Add legal moves as children to this node.
@@ -782,39 +836,39 @@ void Search::ExtendNode(Node* node, PositionHistory* history) {
 			  if (board.IsUnderCheck()) {
 				  // Checkmate.
 				  node->GetFirstChild()->MakeTerminal(GameResult::WHITE_WON);
-				  node->GetFirstChild()->SetN1();
 				  if (node != root_node_) {
 					  madecertain_++;
 					  node->MakeCertain(-1.0f);
 				  }
-				  node->GetFirstChild()->SetP(1.0f);
-				  max_terminal = 1.0;
+				  //node->GetFirstChild()->SetP(1.0f);
+				  max_terminal = 1.0f;
 			  }
 			  else {
 				  // Stalemate.
 				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
-				  node->GetFirstChild()->SetN1();
 			  }
 		  }
 		  else {
 			  if (!board.HasMatingMaterial()) {
 				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
-				  node->GetFirstChild()->SetN1();
 			  }
 
 			  if (history->Last().GetNoCapturePly() >= 100) {
 				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
-				  node->GetFirstChild()->SetN1();
 			  }
 
 			  if (history->Last().GetRepetitions() >= 2) {
 				  node->GetFirstChild()->MakeTerminal(GameResult::DRAW);
-				  node->GetFirstChild()->SetN1();
+			  } else 
+			 	  if ((!(node->GetFirstChild()->IsTerminal()))&&(history->Last().GetRepetitions() >= 1))
+			  {
+			 	  node->GetFirstChild()->MakeCertain(0.0f);
+				  madecertain_++;
 			  }
 		  }
 	    
 	  }
-	  if (!(node->GetFirstChild()->IsTerminal())) only_terminal = false;
+	  if (!(node->GetFirstChild()->IsCertain())) only_terminal = false;
 	  // Populate the number of the childs branches
 	  // and sum over all childs for average calculation
 	  node->GetFirstChild()->SetB(legal_moves_child.size());
@@ -842,7 +896,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
   int best_node_n = 0;
   {
     SharedMutex::Lock lock(nodes_mutex_);
-    if (best_move_node_) best_node_n = best_move_node_->GetNStarted();
+    if (candidate_move_node_) best_node_n = candidate_move_node_->GetNStarted();
   }
 
   // True on first iteration, false as we dive deeper.
@@ -863,26 +917,26 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 			  return nullptr;
 		  }
 		  // Found leave, and we are the the first to visit it or its terminal or certain.
-if ((!node->HasChildren()) || node->IsCertain()) return node;
+      if ((!node->HasChildren()) || node->IsCertain()) return node;
 	  }
 	  // Now we are not in leave, we need to go deeper.
 	  pick_depth++;
 	  SharedMutex::SharedLock lock(nodes_mutex_);
 	  float children_visits = std::max(node->GetChildrenVisits(), 1u);
 	  float best = -100.0f;
-
 	  int possible_moves = 0;
-	  float parent_q =
-		  (is_root_node && kNoise)
-		  ? -node->GetQ(0)
-		  : -node->GetQ(0) -
-		  kFpuReduction * std::sqrt(node->GetVisitedPolicy());
+	  float parent_q;
+	  if (is_root_node && kCertaintyProp && best_move_node_ && best_move_node_->IsCertain())
+	    parent_q = (best_move_node_->GetV() - node->GetQ(0))/2;
+	    else  parent_q = -node->GetQ(0);
+
+	  if   (!(is_root_node && kNoise)) parent_q -= kFpuReduction * std::sqrt(node->GetVisitedPolicy());
 
 	  float parent_avg_child_branches = node->GetCB();
 	  float parent_branches = node->GetB();
 
-	  // Unused for variance approaches
-	  float parent_m = node->GetSigma2(0.01);
+	  // Get empirical variance of parent
+	  float parent_m = node->GetSigma2(0.0f);
 	  for (Node* iter : node->Children()) {
 		  if (is_root_node) {
 			  // If there's no chance to catch up the currently best node with
@@ -890,8 +944,8 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 			  // best_move_node_ can change since best_node_n computation.
 			  // To ensure we have at least one node to expand, always include
 			  // current best node.
-			  if (best_move_node_) if (best_move_node_->IsCertain() && (best_move_node_->GetQ(-2.0f) == 1.0f)) continue;
-			  if (iter != best_move_node_ &&
+			  if (best_move_node_ && kCertaintyProp) if (best_move_node_->IsCertain() && (best_move_node_->GetV() == 1.0f)) continue;
+			  if (iter != candidate_move_node_ &&
 				  remaining_playouts_ < best_node_n - iter->GetNStarted()) {
 				  continue;
 			  }
@@ -902,8 +956,8 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 		  // Unused currently
 		  // if ((kOptimalSelection == 5)&&(n<=1)) Q = (parent_q + Q *(float)n) / (float)(n + 1);
 
-		  // If on the move we always select a certain winning move. Not necessary as it should backpropagate to one ply earlier 
-		  //if ((kCertaintyProp) && (iter->IsCertain()) && (iter->GetQ(-2.0f) == 1.0f)) { node = iter; break; }
+		  // If on the move we always select a certain winning move. Not necessary as it backpropagates to one ply earlier 
+		  // if ((kCertaintyProp) && (iter->IsCertain()) && (iter->GetQ(-2.0f) == 1.0f)) { node = iter; break; }
 
 		  if (kVirtualLossBug && iter->GetN() == 0) {
 			  Q = (Q * iter->GetParent()->GetN() - kVirtualLossBug) /
@@ -915,12 +969,14 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 		  // and exponentially reduced by depth -> getting more selective further down the tree
 		  // --policy-compression=0.0 (disabled) - sensible values are e.g. 0.1
 		  // This is a mode for solving tactics. It will probably loose elo in self-play
-		  float p = iter->GetP();
-		  if (kPolicyCompression > 0.0f) p = (p + powf(kPolicyCompression, 1+(pick_depth-1)*kPolicyCompressionDecay)) / (1 + parent_branches* powf(kPolicyCompression, 1+(pick_depth-1)*kPolicyCompressionDecay));
 
-		  // Reserved for empirical variance based 
-		  // approaches
-		  // float m = iter->GetSigma2(parent_m) : 0.0f;
+		  // if Policy-Compression-Decay < 0.0 activate q-dynamic-policy-compression
+		  float p = iter->GetP();
+		  if (kPolicyCompression > 0.0f)
+			  if (kPolicyCompressionDecay>=0.0)
+		             p = (p + powf(kPolicyCompression, 1+(pick_depth-1)*kPolicyCompressionDecay)) / (1 + parent_branches* powf(kPolicyCompression, 1+(pick_depth-1)*kPolicyCompressionDecay));
+			  else   p = (p + kPolicyCompression*(abs(node->GetV()-node->GetQ(0))/2)) / (1 + parent_branches* kPolicyCompression*(abs(node->GetV() - node->GetQ(0)) / 2));
+
 
 		  // Easy-Early-Visits
 		  // standard implementation "penalizes" early visits slightly 
@@ -970,16 +1026,12 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 		  // --certainty-prop=3 experimental UCB lowered twice the rate / DRAW -> 0 
 		  // --certainty-prop=2 avoids lost branches
 		  // --certainty-prop=1 visits these branches according to PUCT
-
-		  // at root we try always to avoid picking loosing moves (no more signal here) 
-		  if ((kCertaintyProp) && (is_root_node) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
-
 		  // certainty-prop=2: avoid selecting loosing moves
-		  if ((kCertaintyProp == 2) && iter->IsCertain() && (iter->GetQ(-2.0f) == -1.0f)) Q += -99.0f;
+		  if ((kCertaintyProp == 2) && iter->IsCertain() && (iter->GetV() == -1.0f)) Q += -50.0f;
 
-		  // certainty-prop=3: draw -> UCB = 0  otherwise half UCB
+		  // certainty-prop=3: draw -> UCB = 0 (almost) otherwise half UCB
 		  if ((kCertaintyProp == 3) && iter->IsCertain()) {
-			  if (iter->GetQ(-2.0f) == 0.0f) b = 0.0f;
+			  if (iter->GetV() == 0.0f) b = 0.0001f;
 			  else b = b*0.5f;
 		  }
 
@@ -994,6 +1046,16 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 			  if ((q_mc * kVarianceScaling + Q) > 1)  Q = 1; else Q += q_mc * kVarianceScaling;
 		  }
 
+		  // at root we try always to avoid picking loosing moves (no more signal here) 
+		  // also do not choose certain draw if best node is already a certain draw and best_n > íter n_started + 10
+
+		  if (is_root_node && kCertaintyProp && iter->IsCertain()) {
+			  if (kTemperature) {
+				  int moves = played_history_.Last().GetGamePly() / 2;
+				  if (moves >= kTempDecayMoves) {b = 0; Q += -50.0f;}
+			  }
+			  else { b = 0; Q += -50.0f; };
+		  }
 
 		  float score = kCpuct * p *  (std::sqrt(children_visits) / (nstarted)) *b + Q;
 
@@ -1001,8 +1063,11 @@ if ((!node->HasChildren()) || node->IsCertain()) return node;
 			  best = score;
 			  node = iter;
 		  }
-	  }
 
+		  
+	
+	  }
+	
     history->Append(node->GetMove());
     if (is_root_node && possible_moves <= 1) {
       // If there is only one move theoretically possible within remaining time,
@@ -1038,13 +1103,13 @@ std::pair<Move, Move> Search::GetBestMoveInternal() const
 
   Node* best_node = temperature
                         ? GetBestChildWithTemperature(root_node_, temperature)
-                        : GetBestChild(root_node_);
+                        : GetBestChild(root_node_, kCertaintyProp, root_node_);
   // if certain win use winning move
-  if (best_move_node_) if ((best_move_node_->IsCertain())&&(best_move_node_->GetQ(-2.0f)==1.0f)) best_node = best_move_node_;
+  if (kCertaintyProp && best_move_node_) if ((best_move_node_->IsCertain())&&(best_move_node_->GetV()==1.0f)) best_node = best_move_node_;
   Move ponder_move;
   if (best_node->HasChildren()) {
     ponder_move =
-        GetBestChild(best_node)->GetMove(!played_history_.IsBlackToMove());
+        GetBestChild(best_node, kCertaintyProp, root_node_)->GetMove(!played_history_.IsBlackToMove());
   }
   return {best_node->GetMove(played_history_.IsBlackToMove()), ponder_move};
 }

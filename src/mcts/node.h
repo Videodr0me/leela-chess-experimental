@@ -74,10 +74,12 @@ public:
 	uint32_t GetN() const { return n_; }
 	uint32_t GetNInFlight() const { return n_in_flight_; }
 	uint32_t GetChildrenVisits() const { return n_ > 0 ? n_ - 1 : 1; }
+	uint32_t GetRealChildrenVisits();
 	// Returns n = n_if_flight.
 	int GetNStarted() const { return n_ + n_in_flight_; }
 	// Returns Q if number of visits is more than 0,
 	float GetQ(float default_q) const { return n_ ? q_ : default_q; }
+//	float GetQ(float default_q) const { return (n_ || is_certain_) ? q_ : default_q; }
 	// Returns U / (Puct * N[parent])
 	float GetU() const { return p_ / (1 + n_ + n_in_flight_); }
 	// Returns value of Value Head returned from the neural net.
@@ -90,7 +92,7 @@ public:
 	// returns branches of this node (number of childs)
 	float GetB() const {return b_;}
 	// Returns population variance of q.
-	float GetSigma2(float default_m) const { return n_>1 ? m_/(n_-1):default_m; }
+	float GetSigma2(float default_m) const { return  is_certain_ ? 0 : (n_>1 ? m_/(n_-1):default_m); }
 	// Returns whether the node is known to be draw/lose/win.
 	bool IsTerminal() const { return is_terminal_; }
 	// Returns whether the node is known to have a certain score
@@ -112,7 +114,7 @@ public:
   // Sets n_ for terminal nodes that are 
   // found when creating children in 
   // expand node
-  void SetN1() { n_ = 1; }
+  void SetN(uint32_t const n) { n_ = n; }
   // Makes the node terminal and sets it's score.
   void MakeTerminal(GameResult result);
   // Makes the node certain and sets it's score

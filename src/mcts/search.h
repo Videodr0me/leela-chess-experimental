@@ -145,6 +145,9 @@ class Search {
 
   mutable SharedMutex nodes_mutex_;
   Node* best_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
+  Node* candidate_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
+  Node* best_certain_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
+
   Node* last_outputted_best_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
   ThinkingInfo uci_info_ GUARDED_BY(nodes_mutex_);
   int64_t total_playouts_ GUARDED_BY(nodes_mutex_) = 0;
