@@ -1,8 +1,11 @@
 # leela-chess-experimental
 based on Leela Chess Zero https://github.com/LeelaChessZero
 
-Update 01/07/2018: V3.0 released, includes empirical variance, and policy-compression-decay. Executable with tuning tipps (CLOP) here:
-https://github.com/Videodr0me/leela-chess-experimental/releases/tag/v3.0
+Update 20/07/2018: V3.1 released, added two-fold draw scoring, dynamic policy compression, minor bugfix
+https://github.com/Videodr0me/leela-chess-experimental/releases/tag/v3.1
+
+
+Update 01/07/2018: V3.0 released, includes empirical variance, and policy-compression-decay. 
 
 Update 24/06/2018: First results for variance based approach, many results for tree balancing.
 
