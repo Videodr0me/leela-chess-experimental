@@ -504,7 +504,7 @@ Node* GetBestChild(Node* parent, int kCertaintyProp, Node* root) {
   // and the certain draw (twofold, or by backpropagation) if parent v > 0 
   // Parent != Root: Choose only non loosing moves and if theres a certain win choose that.
   
-  std::tuple<int, float, float> best(-1, 0.0, 0.0);
+  std::tuple<int, float, float> best(-2, 0.0, 0.0);
   Node* best_node_certain = nullptr;
   float best_v_certain = -100.0f;
   for (Node* node : parent->Children()) {
@@ -524,8 +524,8 @@ Node* GetBestChild(Node* parent, int kCertaintyProp, Node* root) {
 			best_v_certain = node->GetV();
 		}
 	}
-	// If win is certain use that node instead of above criteria
-	if (kCertaintyProp && node->IsCertain() && (node->GetV() == 1.0f))
+	// If win is terminal use that node instead of above criteria
+	if (kCertaintyProp && node->IsTerminal() && (node->GetV() == 1.0f))
 	{
 		best_node = node;
 		best = val;
