@@ -309,90 +309,103 @@ void Search::Worker() {
     {
       // Update nodes.
       SharedMutex::Lock lock(nodes_mutex_);
-      for (Node* node : nodes_to_process) {
-         // Maximum depth the node is explored.
-		uint16_t depth = 0;
-		uint16_t cur_full_depth = 0;
-        // If the node is terminal or certain, mark it as fully explored to depth 999
-		// and set flag that this v update is a certain one
-		// only on certain updates do we need to check children
-		// when backpropagating (saves computation)
-		bool v_is_certain = false;
-		if (node->IsCertain())
-		{
-			if (node->IsTerminal()) cur_full_depth = 999;
-			v_is_certain = true;
-		}
-		
-		float v = node->GetV();		
-        bool full_depth_updated = true;
-		//best_certain_move_node_ = nullptr;
-		for (Node* n = node; n != root_node_->GetParent(); n = n->GetParent()) {
-			++depth;
-
-			// This is needed for "turbo" certainty propagation
-			// currently disabled
-			// float prev_q = n->GetQ(-3.0f); 
-
-			// MCTS Solver or Proof-Number-Search
-			// kCertaintyProp > 0
-			if ( kCertaintyProp && ((v_is_certain)||(n==root_node_)) &&(!n->IsCertain())) {
-				bool children_all_certain = true;
-				float best_certain_v = -3.0f;
-				Node *best_certain_node = nullptr;
-				for (Node* iter : n->Children()) {
-					if (!iter->IsCertain()) { children_all_certain = false; }
-					else if ((iter->GetV()) >= best_certain_v) {
-						   if (iter->GetV() != best_certain_v)  best_certain_node = iter;
-						   else if (best_certain_v == 0.0f) {
-							    	if (!(iter->IsTerminal()) && (iter->GetParent()->GetV() > 0.0f)) best_certain_node = iter;
-								    if ((iter->GetParent()->GetV() <= 0.0f) && (iter->IsTerminal())) best_certain_node = iter;
-								} 
-							best_certain_v = iter->GetV();
-						 }
-				}
-				if (n == root_node_) best_certain_move_node_ = best_certain_node;
-
-				if (((children_all_certain) || (best_certain_v == 1.0f))&& (n != root_node_)) {
-					v = -best_certain_v;
-					n->MakeCertain(v);
-					++madecertain_;
-				};
-			}
-
-     	  n->FinalizeScoreUpdate(v, kAutoExtendOnlyMove);
-
-		  // This is "turbo" certainty propagation - adjusts v so that if propagated up the tree
-		  // all q values are adjusted as if all visits to this branch (previous visits)
-		  // already yielded the certain result. This is currently disabled
-		  // if ((kCertaintyProp == 1)&&(prev_q != v)&&n->IsCertain()) v = v + (v - prev_q)*(n->GetN() - 1);
-
-          // Q will be flipped for opponent.
-          v = -v;
-
-          // Updating stats.
-          // Max depth.
-          n->UpdateMaxDepth(depth);
-          // Full depth.
-          if (full_depth_updated)
-          full_depth_updated = n->UpdateFullDepth(&cur_full_depth);
-          // Best move.
-		  if ((n == root_node_) && candidate_move_node_)
+	  for (Node* node : nodes_to_process) {
+		  // Maximum depth the node is explored.
+		  uint16_t depth = 0;
+		  uint16_t cur_full_depth = 0;
+		  // If the node is terminal or certain, mark it as fully explored to depth 999
+		  // and set flag that this v update is a certain one
+		  // only on certain updates do we need to check children
+		  // when backpropagating (saves computation)
+		  bool v_is_certain = false;
+		  if (node->IsCertain())
 		  {
-			  if ((!kCertaintyProp)||(!best_certain_move_node_ && kCertaintyProp))
-				  best_move_node_ = candidate_move_node_;
-			  else 
-				  if (candidate_move_node_->GetQ(-2.0f) > best_certain_move_node_->GetV())
-				    best_move_node_ = candidate_move_node_; 
-			      else  
-				    best_move_node_ = best_certain_move_node_;
+			  if (node->IsTerminal()) cur_full_depth = 999;
+			  v_is_certain = true;
 		  }
-          if (n->GetParent() == root_node_) {
-			  if (!candidate_move_node_) candidate_move_node_ = n;
-			  if ((candidate_move_node_->GetN() < n->GetN())||(kCertaintyProp && candidate_move_node_->IsCertain())) candidate_move_node_ = n;
-          }
-        }
-      }
+
+		  float v = node->GetV();
+		  bool full_depth_updated = true;
+		  //best_certain_move_node_ = nullptr;
+		  for (Node* n = node; n != root_node_->GetParent(); n = n->GetParent()) {
+			  ++depth;
+
+			  // This is needed for "turbo" certainty propagation
+			  // currently disabled
+			  // float prev_q = n->GetQ(-3.0f); 
+
+			  // MCTS Solver or Proof-Number-Search
+			  // kCertaintyProp > 0
+			  if (kCertaintyProp && ((v_is_certain) || (n == root_node_)) && (!n->IsCertain())) {
+				  bool children_all_certain = true;
+				  float best_certain_v = -3.0f;
+				  Node *best_certain_node = nullptr;
+				  for (Node* iter : n->Children()) {
+					  if (!iter->IsCertain()) { children_all_certain = false; }
+					  else if ((iter->GetV()) >= best_certain_v) {
+						  if (iter->GetV() != best_certain_v)  best_certain_node = iter;
+						  else if (best_certain_v == 0.0f) {
+							  if (!(iter->IsTerminal()) && (iter->GetParent()->GetV() > 0.0f)) best_certain_node = iter;
+							  if ((iter->GetParent()->GetV() <= 0.0f) && (iter->IsTerminal())) best_certain_node = iter;
+						  }
+						  else if (best_certain_v == 1.0f) {
+							  if (iter->IsTerminal()) best_certain_node = iter;
+						  }
+						  else if (iter->GetN() > best_certain_node->GetN()) best_certain_node = iter;
+
+						  best_certain_v = iter->GetV();
+					  }
+				  }
+				  if (n == root_node_) best_certain_move_node_ = best_certain_node;
+
+				  if (((children_all_certain) || (best_certain_v == 1.0f)) && (n != root_node_)) {
+					  v = -best_certain_v;
+					  n->MakeCertain(v);
+					  ++madecertain_;
+				  }
+			  }
+
+			  n->FinalizeScoreUpdate(v, kAutoExtendOnlyMove);
+
+			  // This is "turbo" certainty propagation - adjusts v so that if propagated up the tree
+			  // all q values are adjusted as if all visits to this branch (previous visits)
+			  // already yielded the certain result. This is currently disabled
+			  // if ((kCertaintyProp == 1)&&(prev_q != v)&&n->IsCertain()) v = v + (v - prev_q)*(n->GetN() - 1);
+
+			  // Q will be flipped for opponent.
+			  v = -v;
+
+			  // Updating stats.
+			  // Max depth.
+			  n->UpdateMaxDepth(depth);
+			  // Full depth.
+			  if (full_depth_updated)
+				  full_depth_updated = n->UpdateFullDepth(&cur_full_depth);
+			  // Best move.
+			  if (kCertaintyProp)
+			  {
+				  if (n == root_node_)
+				  {
+					  if (candidate_move_node_ && best_certain_move_node_)
+						  if (candidate_move_node_->GetQ(-1.0f) >= best_certain_move_node_->GetV())
+							  best_move_node_ = candidate_move_node_;
+						  else
+							  best_move_node_ = best_certain_move_node_;
+					  if (!candidate_move_node_) best_move_node_ = best_certain_move_node_;
+					  if (!best_certain_move_node_) best_move_node_ = candidate_move_node_;
+				  }
+				  if ((n->GetParent() == root_node_) && !(n->IsCertain())) {
+					  if (!candidate_move_node_) candidate_move_node_ = n;
+					  else if ((candidate_move_node_->GetN() < n->GetN()) || candidate_move_node_->IsCertain()) candidate_move_node_ = n;
+				  }
+			  }
+			  else
+				  if (n->GetParent() == root_node_) {
+					  if (!best_move_node_) best_move_node_ = n;
+					  if (best_move_node_->GetN() < n->GetN()) best_move_node_ = n;
+				  }
+		  }
+	  }
       total_playouts_ += nodes_to_process.size();
     }
     UpdateRemainingMoves();  // Update remaining moves using smart pruning.
@@ -514,29 +527,32 @@ Node* GetBestChild(Node* parent, int kCertaintyProp, Node* root) {
       best_node = node;
     }
 
-	if (kCertaintyProp && (parent == root) && node->IsCertain()) {
+	if (kCertaintyProp && node->IsCertain()) {
 		if (node->GetV() >= best_v_certain) {
 			if (node->GetV() != best_v_certain) best_node_certain = node;
 			else if (best_v_certain == 0.0f) {
 			    	if (!(node->IsTerminal()) && (parent->GetV() > 0.0f)) best_node_certain = node;
 				    if ((parent->GetV() <= 0.0f) && (node->IsTerminal())) best_node_certain = node;
-			     }
+			}
+			else if (best_v_certain == 1.0f) {
+			  if (node->IsTerminal()) best_node_certain = node;
+			} else if (node->GetN() > best_node_certain->GetN()) best_node_certain = node;
 			best_v_certain = node->GetV();
 		}
 	}
 	// If win is terminal use that node instead of above criteria
-	if (kCertaintyProp && node->IsTerminal() && (node->GetV() == 1.0f))
-	{
-		best_node = node;
-		best = val;
-		break;
-	}
   }
+
+  if (kCertaintyProp && best_node_certain)  if (best_node_certain->GetV() == 1.0f)
+    {
+	best_node = best_node_certain;
+	return best_node;
+    }
 
 
   if ((parent == root)&&(best_node_certain))
   {
-	  if (best_v_certain > best_node->GetQ(-1.0))
+	  if ((best_v_certain > best_node->GetQ(-1.0))|| best_node->IsCertain())
 		  best_node = best_node_certain;
   }
   return best_node;
@@ -577,7 +593,7 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
   uci_info_.madecertain = madecertain_;
   uci_info_.nps =
       uci_info_.time ? (total_playouts_ * 1000 / uci_info_.time) : 0;
-  uci_info_.score = 290.680623072 * tan(1.548090806 * best_move_node_->GetQ(0));
+  uci_info_.score = 290.680623072 * tan(1.548090806 * (best_move_node_->IsCertain() ? best_move_node_->GetV() : best_move_node_->GetQ(0)));
   uci_info_.pv.clear();
 
   bool flip = played_history_.IsBlackToMove();
@@ -585,6 +601,7 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
        iter = GetBestChild(iter, kCertaintyProp, root_node_), flip = !flip) {
     uci_info_.pv.push_back(iter->GetMove(flip));
   }
+  if (best_move_node_->IsCertain() && (best_move_node_->GetV() != 0.0f)) uci_info_.score = best_move_node_->GetV() *(20000 + (uci_info_.pv.size()+1) / 2);
   uci_info_.comment.clear();
   info_callback_(uci_info_);
 }
@@ -1052,10 +1069,11 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 		  if (is_root_node && kCertaintyProp && iter->IsCertain()) {
 			  if (kTemperature) {
 				  int moves = played_history_.Last().GetGamePly() / 2;
-				  if (moves >= kTempDecayMoves) {b = 0; Q += -50.0f;}
+				  if (moves >= kTempDecayMoves) {b = 0; Q = iter->GetV() -50.0f + 0.4f * (float)n / (float)children_visits;}
 			  }
-			  else { b = 0; Q += -50.0f; };
+			  else { b = 0; Q = iter->GetV() - 50.0f + 0.4f  * (float)n / (float)children_visits; };
 		  }
+ 
 
 		  float score = kCpuct * p *  (std::sqrt(children_visits) / (nstarted)) *b + Q;
 

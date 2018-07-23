@@ -199,7 +199,9 @@ void UciLoop::SendInfo(const ThinkingInfo& info) {
   if (info.seldepth >= 0) res += " seldepth " + std::to_string(info.seldepth);
   if (info.time >= 0) res += " time " + std::to_string(info.time);
   if (info.nodes >= 0) res += " nodes " + std::to_string(info.nodes);
-  if (info.score) res += " score cp " + std::to_string(*info.score);
+  if (info.score)
+	  if (abs(*info.score) >= 20000) res += " score mate " + std::to_string(*info.score + ((*info.score > 0) ? -20000 : 20000));
+		  else res += " score cp " + std::to_string(*info.score);
   if (info.madecertain >= 0) res += " certain " + std::to_string(info.madecertain); 
   if (info.hashfull >= 0) res += " hashfull " + std::to_string(info.hashfull);
   if (info.nps >= 0) res += " nps " + std::to_string(info.nps);
